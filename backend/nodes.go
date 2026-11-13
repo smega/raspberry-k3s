@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -42,23 +44,69 @@ type nodeStats struct {
 	// Ready is the Kubernetes node condition; Reachable is whether
 	// Prometheus could scrape the Pi's node-exporter on its last try. A Pi
 	// that is powered off is neither, and its readings are all null.
-	Ready         bool     `json:"ready"`
-	Reachable     bool     `json:"reachable"`
-	TempC         *float64 `json:"tempC"`
-	CPUPercent    *float64 `json:"cpuPercent"`
-	MemPercent    *float64 `json:"memPercent"`
-	MemUsedBytes  *float64 `json:"memUsedBytes"`
-	MemTotalBytes *float64 `json:"memTotalBytes"`
-	Load1         *float64 `json:"load1"`
-	UptimeSeconds *float64 `json:"uptimeSeconds"`
-	TempHistory   []point  `json:"tempHistory"`
-	CPUHistory    []point  `json:"cpuHistory"`
-	MemHistory    []point  `json:"memHistory"`
+	Ready          bool     `json:"ready"`
+	Reachable      bool     `json:"reachable"`
+	TempC          *float64 `json:"tempC"`
+	CPUPercent     *float64 `json:"cpuPercent"`
+	MemPercent     *float64 `json:"memPercent"`
+	MemUsedBytes   *float64 `json:"memUsedBytes"`
+	MemTotalBytes  *float64 `json:"memTotalBytes"`
+	Load1          *float64 `json:"load1"`
+	UptimeSeconds  *float64 `json:"uptimeSeconds"`
+	CPUCores       *float64 `json:"cpuCores"`
+	DiskUsedBytes  *float64 `json:"diskUsedBytes"`
+	DiskTotalBytes *float64 `json:"diskTotalBytes"`
+	PodsRunning    *float64 `json:"podsRunning"`
+	TempHistory    []point  `json:"tempHistory"`
+	CPUHistory     []point  `json:"cpuHistory"`
+	MemHistory     []point  `json:"memHistory"`
+}
+
+// clusterInfo is the cluster-wide summary. Versions are cut to major.minor:
+// enough to say what the cluster runs, without publishing exact patch levels.
+type clusterInfo struct {
+	CreatedAt   *int64   `json:"createdAt"`
+	PodsRunning *float64 `json:"podsRunning"`
+	Namespaces  *float64 `json:"namespaces"`
+	Workloads   *float64 `json:"workloads"`
+	K3s         string   `json:"k3s"`
+	OS          string   `json:"os"`
+	Kernel      string   `json:"kernel"`
+	Runtime     string   `json:"runtime"`
 }
 
 type nodesResponse struct {
 	GeneratedAt string      `json:"generatedAt"`
+	Cluster     clusterInfo `json:"cluster"`
 	Nodes       []nodeStats `json:"nodes"`
+}
+
+var majorMinor = regexp.MustCompile(`\d+\.\d+`)
+
+// shortVersion keeps the leading text and major.minor of a version string:
+// "v1.30.4+k3s1" -> "1.30", "containerd://1.7.20-k3s1" -> "containerd 1.7".
+func shortVersion(name, v string) string {
+	mm := majorMinor.FindString(v)
+	if mm == "" {
+		return ""
+	}
+	if name == "" {
+		return mm
+	}
+	return name + " " + mm
+}
+
+// scalar runs an instant query expected to return a single value.
+func (p *promClient) scalar(ctx context.Context, q string) *float64 {
+	res, err := p.query(ctx, q)
+	if err != nil || len(res) == 0 {
+		return nil
+	}
+	v, ok := sampleValue(res[0].Value)
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 type promSample struct {
@@ -216,12 +264,15 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 	reachable := labelSet(`up{job=~".*node-exporter.*"}`, "instance")
 
 	queries := map[string]string{
-		"temp":     tempQuery,
-		"cpu":      cpuQuery,
-		"memTotal": `node_memory_MemTotal_bytes`,
-		"memUsed":  `node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes`,
-		"load1":    `node_load1`,
-		"uptime":   `time() - node_boot_time_seconds`,
+		"temp":      tempQuery,
+		"cpu":       cpuQuery,
+		"memTotal":  `node_memory_MemTotal_bytes`,
+		"memUsed":   `node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes`,
+		"load1":     `node_load1`,
+		"uptime":    `time() - node_boot_time_seconds`,
+		"cores":     `count by (instance) (node_cpu_seconds_total{mode="idle"})`,
+		"diskTotal": `node_filesystem_size_bytes{mountpoint="/"}`,
+		"diskUsed":  `node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"}`,
 	}
 	values := make(map[string]map[string]float64, len(queries))
 	for key, q := range queries {
@@ -230,6 +281,36 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 			return nil, fmt.Errorf("%s: %w", key, err)
 		}
 		values[key] = v
+	}
+
+	podsByNode := map[string]float64{}
+	if res, err := p.query(ctx, `count by (node) (kube_pod_info * on (namespace, pod) group_left () (kube_pod_status_phase{phase="Running"} == 1))`); err == nil {
+		for _, s := range res {
+			if v, ok := sampleValue(s.Value); ok {
+				podsByNode[s.Metric["node"]] = v
+			}
+		}
+	}
+
+	cluster := clusterInfo{
+		PodsRunning: p.scalar(ctx, `sum(kube_pod_status_phase{phase="Running"})`),
+		Namespaces:  p.scalar(ctx, `count(kube_namespace_status_phase{phase="Active"} == 1)`),
+		Workloads:   p.scalar(ctx, `count(kube_deployment_created) + count(kube_statefulset_created) + count(kube_daemonset_created)`),
+	}
+	if v := p.scalar(ctx, `min(kube_node_created)`); v != nil {
+		t := int64(*v)
+		cluster.CreatedAt = &t
+	}
+	for _, s := range kubeNodes {
+		if controlPlane[s.Metric["node"]] || cluster.K3s == "" {
+			cluster.K3s = shortVersion("", s.Metric["kubelet_version"])
+			cluster.OS = s.Metric["os_image"]
+			cluster.Kernel = shortVersion("Linux", s.Metric["kernel_version"])
+			if rt := s.Metric["container_runtime_version"]; rt != "" {
+				name, _, _ := strings.Cut(rt, "://")
+				cluster.Runtime = shortVersion(name, rt)
+			}
+		}
 	}
 
 	end := time.Now()
@@ -252,7 +333,7 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 		return pts
 	}
 
-	resp := &nodesResponse{GeneratedAt: end.UTC().Format(time.RFC3339), Nodes: []nodeStats{}}
+	resp := &nodesResponse{GeneratedAt: end.UTC().Format(time.RFC3339), Cluster: cluster, Nodes: []nodeStats{}}
 	for i, name := range names {
 		role := "worker"
 		if controlPlane[name] {
@@ -272,6 +353,15 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 			n.CPUPercent = pick("cpu", inst)
 			n.Load1 = pick("load1", inst)
 			n.UptimeSeconds = pick("uptime", inst)
+			if v, ok := values["cores"][inst]; ok {
+				n.CPUCores = &v
+			}
+			if v, ok := values["diskTotal"][inst]; ok {
+				n.DiskTotalBytes = &v
+			}
+			if v, ok := values["diskUsed"][inst]; ok {
+				n.DiskUsedBytes = &v
+			}
 			if used, ok := values["memUsed"][inst]; ok {
 				n.MemUsedBytes = &used
 			}
@@ -282,6 +372,9 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 					n.MemPercent = &pct
 				}
 			}
+		}
+		if v, ok := podsByNode[name]; ok {
+			n.PodsRunning = &v
 		}
 		resp.Nodes = append(resp.Nodes, n)
 	}

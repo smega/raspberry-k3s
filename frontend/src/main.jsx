@@ -279,9 +279,17 @@ function NodeCard({ n }) {
         percent={n.memPercent}
         detail={n.memUsedBytes != null && n.memTotalBytes != null ? `${formatGiB(n.memUsedBytes)} / ${formatGiB(n.memTotalBytes)} GiB` : null}
       />
+      <Meter
+        label="Disk"
+        percent={n.diskUsedBytes != null && n.diskTotalBytes ? (100 * n.diskUsedBytes) / n.diskTotalBytes : null}
+        detail={n.diskUsedBytes != null && n.diskTotalBytes != null ? `${formatGiB(n.diskUsedBytes)} / ${formatGiB(n.diskTotalBytes)} GiB` : null}
+      />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: INK_MUTED, margin: '4px 0 14px' }}>
-        <span>Load {n.load1 != null ? n.load1.toFixed(2) : '-'}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12px', color: INK_MUTED, margin: '4px 0 14px' }}>
+        <span>
+          Load {n.load1 != null ? n.load1.toFixed(2) : '-'}
+          {n.podsRunning != null && ` · ${n.podsRunning} pods`}
+        </span>
         <span>Up {formatUptime(n.uptimeSeconds)}</span>
       </div>
 
@@ -293,6 +301,85 @@ function NodeCard({ n }) {
         <span>now</span>
       </div>
     </Card>
+  )
+}
+
+// Fixed facts about the hardware: node-exporter can't see the board model or
+// what's plugged in, and none of this changes without someone at the shelf.
+const HARDWARE = [
+  ['Boards', '4 × Raspberry Pi 4 Model B'],
+  ['CPU', 'Broadcom BCM2711, 4 × Cortex-A72 at 1.5 GHz per Pi'],
+  ['Memory', '4 GB per Pi'],
+  ['Storage', '32 GB microSD per Pi, no network storage'],
+  ['Network', 'Gigabit Ethernet, Wi-Fi off'],
+  ['Extras', 'An RGB LED on each Pi, driven over GPIO'],
+]
+
+function formatSince(unixSeconds) {
+  if (unixSeconds == null) return null
+  const d = new Date(unixSeconds * 1000)
+  const month = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const years = (Date.now() / 1000 - unixSeconds) / (365.25 * 86400)
+  return years >= 1 ? `${month} (${Math.floor(years)} year${years >= 2 ? 's' : ''})` : month
+}
+
+function FactList({ title, rows }) {
+  return (
+    <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+      <h3 style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 600, color: INK_PRIMARY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {title}
+      </h3>
+      <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'minmax(84px, auto) 1fr', gap: '6px 12px', fontSize: '13px' }}>
+        {rows
+          .filter(([, v]) => v != null && v !== '')
+          .flatMap(([k, v]) => [
+            <dt key={`${k}-t`} style={{ color: INK_MUTED }}>
+              {k}
+            </dt>,
+            <dd key={`${k}-d`} style={{ margin: 0, color: INK_SECONDARY }}>
+              {v}
+            </dd>,
+          ])}
+      </dl>
+    </div>
+  )
+}
+
+function ClusterFacts({ data }) {
+  const c = data.cluster || {}
+  const reachable = data.nodes.filter((n) => n.reachable)
+  const sum = (key) => reachable.reduce((acc, n) => acc + (n[key] ?? 0), 0)
+  const ready = data.nodes.filter((n) => n.ready).length
+  const workers = data.nodes.filter((n) => !n.name.includes('control plane')).length
+
+  const software = [
+    ['Kubernetes', c.k3s ? `k3s ${c.k3s}, ${data.nodes.length - workers} control plane + ${workers} workers` : null],
+    ['Datastore', 'SQLite (k3s default, via kine)'],
+    ['OS', c.os ? `${c.os}, 64-bit` : null],
+    ['Kernel', c.kernel],
+    ['Runtime', c.runtime],
+    ['Traffic', 'Kong (Gateway API), Tailscale to the VPS'],
+    ['Monitoring', 'kube-prometheus-stack, blackbox exporter'],
+  ]
+  const now = [
+    ['Nodes', `${ready} of ${data.nodes.length} ready`],
+    ['CPU cores', reachable.length ? `${sum('cpuCores')}` : null],
+    ['Memory', reachable.length ? `${formatGiB(sum('memTotalBytes'))} GiB usable` : null],
+    ['Pods', c.podsRunning != null ? `${c.podsRunning} running` : null],
+    ['Workloads', c.workloads != null && c.namespaces != null ? `${c.workloads} in ${c.namespaces} namespaces` : null],
+    ['Running since', formatSince(c.createdAt)],
+  ]
+
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px 32px' }}>
+          <FactList title="Hardware" rows={HARDWARE} />
+          <FactList title="Software" rows={software} />
+          <FactList title="Right now" rows={now} />
+        </div>
+      </Card>
+    </div>
   )
 }
 
@@ -356,6 +443,7 @@ function NodesSection({ apiBase }) {
 
       {nodes && (
         <>
+          <ClusterFacts data={nodes} />
           <div
             style={{
               display: 'grid',
