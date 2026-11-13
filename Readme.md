@@ -41,6 +41,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `pi-temp-led/` -- a DaemonSet that drives an RGB LED on every Pi from its
   own CPU load (blue when idle, red when busy), plus its own manifests and
   README. The status page's per-node dot uses the same color scale.
+- `blackbox/` -- Helm values for the blackbox exporter that probes TLS
+  certificates (expiry alerts in `deployments/12-cert-expiry.yaml`).
 - `kong/` -- Helm values for installing Kong as the cluster's Gateway API
   implementation.
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,
@@ -72,6 +74,9 @@ kubectl apply -f deployments/08-httproutes.yaml
 kubectl apply -f deployments/09-dashboard-readonly-rbac.yaml
 kubectl apply -f deployments/10-dashboard.yaml
 kubectl apply -f deployments/11-status-slo-alerts.yaml
+helm upgrade --install blackbox prometheus-community/prometheus-blackbox-exporter \
+  --version 11.21.2 -n monitoring -f blackbox/blackbox-values.yaml
+kubectl apply -f deployments/12-cert-expiry.yaml
 ```
 
 `11-status-slo-alerts.yaml` needs kube-prometheus-stack (the

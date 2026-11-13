@@ -52,12 +52,20 @@ def check_one(name, url):
         # anonymous check is working as intended, not down.
         ok = resp.status_code < 500
         status_code = resp.status_code
-    except requests.RequestException:
+        error = None if ok else f"HTTP {status_code}"
+    except requests.RequestException as e:
         latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
         ok = False
         status_code = None
+        # Class name only (ReadTimeout, ConnectionError, SSLError...): enough
+        # to tell a slow service from a dead one, without leaking URLs or
+        # stack details onto a public page.
+        error = type(e).__name__
 
-    return {
+    if error:
+        print(f"{name}: down ({error}, {latency_ms} ms)", flush=True)
+
+    result = {
         "name": name,
         "url": url,
         "ok": ok,
@@ -65,6 +73,9 @@ def check_one(name, url):
         "latencyMs": latency_ms,
         "lastCheckedAt": checked_at,
     }
+    if error:
+        result["error"] = error
+    return result
 
 
 def load_existing(v1):
@@ -150,7 +161,12 @@ def build_payload(existing, check=check_one):
         result = check(name, url)
         prev = existing.get(name, {})
         history = prev.get("history", [])
-        history.append({"t": result["lastCheckedAt"], "ok": result["ok"]})
+        entry = {"t": result["lastCheckedAt"], "ok": result["ok"]}
+        if result.get("error"):
+            # Kept with the check, so a failure can still be explained after
+            # the Job's logs are gone.
+            entry["error"] = result["error"]
+        history.append(entry)
         history = history[-HISTORY_LIMIT:]
         daily = add_to_daily(prev.get("daily", []), result["lastCheckedAt"], result["ok"])
 

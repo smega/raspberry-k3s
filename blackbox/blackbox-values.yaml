@@ -1,0 +1,52 @@
+# Helm values for prometheus-community/prometheus-blackbox-exporter, used
+# for TLS certificate expiry probes (deployments/12-cert-expiry.yaml).
+#
+#   helm upgrade --install blackbox prometheus-community/prometheus-blackbox-exporter \
+#     --version 11.21.2 -n monitoring -f blackbox/blackbox-values.yaml
+#
+# Probes are Probe objects (prometheus-operator), not chart-managed
+# ServiceMonitors, so targets live next to the alert rules.
+config:
+  modules:
+    # TLS handshake with full verification: fails on an expired, wrong-name
+    # or untrusted certificate, and reports probe_ssl_earliest_cert_expiry.
+    tls_connect:
+      prober: tcp
+      timeout: 10s
+      tcp:
+        tls: true
+        preferred_ip_protocol: ip4
+    # Same, for certificates signed by a private CA (k3s's own): verification
+    # skipped, but the expiry date is still reported.
+    tls_connect_insecure:
+      prober: tcp
+      timeout: 10s
+      tcp:
+        tls: true
+        preferred_ip_protocol: ip4
+        tls_config:
+          insecure_skip_verify: true
+    # SMTP submission: STARTTLS, then the certificate is checked like above.
+    smtp_starttls:
+      prober: tcp
+      timeout: 15s
+      tcp:
+        preferred_ip_protocol: ip4
+        query_response:
+          - expect: "^220 "
+          - send: "EHLO probe.local\r"
+          - expect: "^250 "
+          - send: "STARTTLS\r"
+          - expect: "^220 "
+          - starttls: true
+          - send: "QUIT\r"
+
+serviceMonitor:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi

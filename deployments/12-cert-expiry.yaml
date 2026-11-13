@@ -1,0 +1,106 @@
+# TLS certificate expiry monitoring.
+#
+# The blackbox exporter (blackbox/blackbox-values.yaml) opens a TLS connection
+# to each target and reports when its certificate expires. The rules alert
+# 14 days ahead (warning) and 3 days ahead (critical), and when a handshake
+# fails outright (an already expired or invalid certificate fails
+# verification, and then no expiry date is reported at all).
+#
+# Added after a client certificate expired unnoticed (see the incident log on
+# status.smega.eu). Probes for private hostnames live outside this repo.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: tls-public-sites
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  jobName: tls-public-sites
+  interval: 1h
+  module: tls_connect
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - smega.eu:443
+        - status.smega.eu:443
+        - api-status.smega.eu:443
+        - cluster.smega.eu:443
+        - whoami.smega.eu:443
+        - tools.smega.eu:443
+        - seo.smega.eu:443
+        - yaots.smega.eu:443
+        - runguard.smega.eu:443
+        - nevnapok.eu:443
+---
+# k3s signs its own certificates with a private CA, so these skip
+# verification and only read the expiry. The API server's serving
+# certificate is issued together with k3s's other component certificates,
+# so it doubles as an early warning for those.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: tls-k3s-apiserver
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  jobName: tls-k3s
+  interval: 1h
+  module: tls_connect_insecure
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - kubernetes.default.svc:443
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cert-expiry
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: cert-expiry
+      rules:
+        - alert: CertificateExpiresSoon
+          expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 14
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS certificate of {{ $labels.instance }} expires in {{ $value | printf \"%.0f\" }} days"
+            description: >-
+              The certificate served at {{ $labels.instance }} ({{ $labels.job }})
+              expires in {{ $value | printf "%.1f" }} days and has not been
+              renewed yet. Check the renewal (certbot timer, k3s rotation,
+              Cloudflare).
+
+        - alert: CertificateExpiresVerySoon
+          expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 3
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "TLS certificate of {{ $labels.instance }} expires in {{ $value | printf \"%.1f\" }} days"
+            description: >-
+              The certificate served at {{ $labels.instance }} ({{ $labels.job }})
+              expires in {{ $value | printf "%.1f" }} days. Renew it now.
+
+        - alert: TLSProbeFailing
+          expr: probe_success{job=~"tls-.*"} == 0
+          for: 3h
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS handshake with {{ $labels.instance }} is failing"
+            description: >-
+              The blackbox exporter can't complete a TLS handshake with
+              {{ $labels.instance }} ({{ $labels.job }}) for 3 hours. An expired
+              or invalid certificate looks like this, as does the host being
+              down.

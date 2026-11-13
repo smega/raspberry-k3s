@@ -1,5 +1,6 @@
 import { h, render } from 'preact'
 import { useEffect, useMemo, useState } from 'preact/hooks'
+import { INCIDENTS } from './incidents.js'
 
 // Status palette (fixed, never themed) - good/critical only, this page has
 // no intermediate "degraded" state.
@@ -42,7 +43,8 @@ function downsample(history) {
     const start = Math.floor(i * bucketSize)
     const end = Math.floor((i + 1) * bucketSize) || start + 1
     const bucket = history.slice(start, end)
-    bars.push({ t: bucket[bucket.length - 1].t, ok: bucket.every((h) => h.ok) })
+    const failed = bucket.find((h) => !h.ok)
+    bars.push({ t: bucket[bucket.length - 1].t, ok: !failed, error: failed?.error })
   }
   return bars
 }
@@ -57,7 +59,7 @@ function HistoryStrip({ history }) {
       {bars.map((h, i) => (
         <div
           key={i}
-          title={`${h.t}: ${h.ok ? 'up' : 'down'}`}
+          title={`${h.t}: ${h.ok ? 'up' : `down${h.error ? ` (${h.error})` : ''}`}`}
           style={{
             flex: '1 1 0',
             minWidth: 0,
@@ -469,6 +471,67 @@ function ArchitectureDiagram() {
   )
 }
 
+function formatIncidentDate(iso) {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
+function IncidentEntry({ i }) {
+  const label = { fontWeight: 600, color: INK_PRIMARY }
+  const p = { margin: '6px 0 0', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6 }
+  const outage = i.impact === 'outage'
+  return (
+    <article style={{ padding: '18px 0', borderTop: `1px solid ${BORDER}` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+        <time dateTime={i.date} style={{ fontSize: '12px', color: INK_MUTED, minWidth: '88px' }}>
+          {formatIncidentDate(i.date)}
+        </time>
+        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: INK_PRIMARY }}>{i.title}</h3>
+        <span
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '999px',
+            border: `1px solid ${outage ? `${CRITICAL}55` : BORDER}`,
+            color: outage ? CRITICAL : INK_SECONDARY,
+          }}
+        >
+          {outage ? `Outage · ${i.duration}` : `No outage · ${i.duration}`}
+        </span>
+      </div>
+      <div style={{ maxWidth: '760px' }}>
+        <p style={p}>{i.what}</p>
+        <p style={p}>
+          <span style={label}>Fix:</span> {i.fix}
+        </p>
+        <p style={p}>
+          <span style={label}>Since then:</span> {i.lesson}
+        </p>
+        {i.link && (
+          <p style={p}>
+            <a href={i.link} target="_blank" rel="noreferrer" style={{ color: INK_PRIMARY, fontWeight: 500 }}>
+              Full write-up
+            </a>
+          </p>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function IncidentLog() {
+  return (
+    <section style={{ marginTop: '40px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 6px', color: INK_PRIMARY }}>Incident log</h2>
+      <p style={{ margin: '0 0 8px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6, maxWidth: '620px' }}>
+        What broke, what fixed it and what changed afterwards, including the problems nobody outside noticed.
+      </p>
+      {INCIDENTS.map((i) => (
+        <IncidentEntry key={`${i.date}-${i.title}`} i={i} />
+      ))}
+    </section>
+  )
+}
+
 // Badge slugs must match backend/badge.go's slugify().
 function slugify(name) {
   return name
@@ -586,10 +649,21 @@ function HowItWorksSection() {
             Prometheus with node-exporter on every Pi, so the API sends a few fixed PromQL queries and caches the
             answer for 15 seconds. Nodes show up as "Pi #N" rather than hostnames or IPs.
           </p>
-          <p style={{ ...p, margin: 0 }}>
+          <p style={p}>
             <strong style={{ color: INK_PRIMARY }}>Standard Kubernetes routing.</strong> Requests come through
             Cloudflare to nginx on a small VPS, then over Tailscale to Kong, which implements the Gateway API in front
             of the apps. Images are built for arm64 and pulled from a private registry.
+          </p>
+          <p style={{ ...p, margin: 0 }}>
+            <strong style={{ color: INK_PRIMARY }}>Watched from inside and outside.</strong> Prometheus turns the
+            check results into SLO burn-rate alerts that go to my phone. A checker inside the cluster can't report
+            the cluster being down, so a probe on the VPS tests the public path every 2 minutes, and Alertmanager
+            sends a constant "still alive" heartbeat. Both report to{' '}
+            <a href="https://runguard.smega.eu" target="_blank" rel="noreferrer" style={{ color: INK_PRIMARY }}>
+              RunGuard
+            </a>
+            , my own heartbeat monitor, which runs outside the cluster and alerts when they stop. The cluster checks
+            the VPS in return.
           </p>
           <p style={{ ...p, margin: '16px 0 0' }}>
             Source code, manifests and the full setup:{' '}
@@ -934,13 +1008,15 @@ function ServicesView({ apiBase }) {
           <BadgesSection apiBase={apiBase} services={data.services} />
 
           <div style={{ fontSize: '12px', color: INK_MUTED }}>
-            Last checked: {data.generatedAt} ·{' '}
+            Last checked: {data.generatedAt} · Monitored from inside and outside the cluster ·{' '}
             <a href="#cluster" style={{ color: INK_SECONDARY }}>
-              What runs these checks
+              How
             </a>
           </div>
         </>
       )}
+
+      <IncidentLog />
     </>
   )
 }
