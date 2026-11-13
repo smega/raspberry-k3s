@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: status-api
+  namespace: public-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: status-api
+  template:
+    metadata:
+      labels:
+        app: status-api
+    spec:
+      imagePullSecrets:
+      - name: zot-registry
+      containers:
+        - name: api
+          image: registry.smdoes.eu/raspberry/status-api:latest
+          imagePullPolicy: Always
+          env:
+            - name: STATUS_DATA_FILE
+              value: /data/status-data.json
+            # Source for /api/nodes (live per-Pi temp/CPU/memory). Fixed
+            # queries only, see backend/nodes.go.
+            - name: PROMETHEUS_URL
+              value: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: status-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+      volumes:
+        - name: status-data
+          configMap:
+            name: status-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: status-api
+  namespace: public-demo
+spec:
+  selector:
+    app: status-api
+  ports:
+    - port: 80
+      targetPort: 8080

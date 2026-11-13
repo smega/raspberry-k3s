@@ -1,0 +1,89 @@
+<!doctype html>
+<!-- Source of public/og.png (the link preview card). Same look as smega.eu's
+     card. Regenerate with frontend/og/render.sh after editing. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        background: #fafafa;
+        font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+        color: #18181b;
+        position: relative;
+      }
+      .bar { position: absolute; top: 0; left: 0; right: 0; height: 12px; background: #059669; }
+      .brand { position: absolute; top: 92px; left: 90px; display: flex; align-items: center; gap: 20px; }
+      .logo {
+        width: 72px; height: 72px; border-radius: 16px;
+        background: linear-gradient(135deg, #10b981, #06b6d4);
+        color: #fff; font-weight: 700; font-size: 26px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .name { font-size: 30px; font-weight: 700; }
+      .kicker {
+        position: absolute; top: 243px; left: 90px;
+        font-size: 21px; letter-spacing: 5px; color: #047857; font-weight: 500;
+      }
+      h1 {
+        position: absolute; top: 290px; left: 90px; width: 620px;
+        font-size: 60px; line-height: 1.08; font-weight: 800; letter-spacing: -1px;
+      }
+      .tagline { position: absolute; bottom: 82px; left: 90px; font-size: 24px; color: #52525b; }
+      .url { position: absolute; bottom: 82px; right: 90px; font-size: 24px; font-weight: 700; color: #047857; }
+
+      .nodes {
+        position: absolute; top: 175px; right: 90px; width: 360px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+      }
+      .node {
+        background: #fff; border: 1px solid #e4e4e7; border-radius: 14px;
+        padding: 16px 16px 12px;
+      }
+      .node .label { font-size: 15px; font-weight: 600; color: #3f3f46; margin-bottom: 10px; }
+      .node .temp { display: flex; align-items: center; gap: 8px; font-size: 26px; font-weight: 700; }
+      .node .dot { width: 14px; height: 14px; border-radius: 50%; }
+      .node svg { display: block; width: 100%; height: 26px; margin-top: 10px; }
+      .up { display: flex; align-items: center; gap: 8px; font-size: 15px; color: #3f3f46; margin-top: 16px; grid-column: 1 / -1; }
+      .up .dot { width: 10px; height: 10px; border-radius: 50%; background: #0ca30c; }
+    </style>
+  </head>
+  <body>
+    <div class="bar"></div>
+    <div class="brand">
+      <div class="logo">SM</div>
+      <div class="name">Szabolcs Mega</div>
+    </div>
+    <div class="kicker">RASPBERRY PI K3S LAB</div>
+    <h1>Live status of my home Kubernetes cluster</h1>
+    <div class="tagline">Uptime, CPU temps, and how it's built</div>
+    <div class="url">status.smega.eu</div>
+
+    <!-- Illustrative, not live: dot colors use the page's blue-to-red
+         35-75 °C scale. -->
+    <div class="nodes">
+      <div class="node">
+        <div class="label">Pi #1</div>
+        <div class="temp"><span class="dot" style="background: rgb(141, 77, 117)"></span>61 °C</div>
+        <svg viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M0,12 L10,10 L20,11 L30,8 L40,10 L50,9 L60,11 L70,7 L80,9 L90,14 L100,15" fill="none" stroke="#52514e" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>
+      </div>
+      <div class="node">
+        <div class="label">Pi #2</div>
+        <div class="temp"><span class="dot" style="background: rgb(124, 82, 133)"></span>56 °C</div>
+        <svg viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M0,14 L10,9 L20,10 L30,11 L40,8 L50,10 L60,9 L70,6 L80,10 L90,15 L100,16" fill="none" stroke="#52514e" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>
+      </div>
+      <div class="node">
+        <div class="label">Pi #3</div>
+        <div class="temp"><span class="dot" style="background: rgb(115, 85, 143)"></span>53 °C</div>
+        <svg viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M0,11 L10,9 L20,10 L30,12 L40,10 L50,11 L60,9 L70,8 L80,11 L90,13 L100,15" fill="none" stroke="#52514e" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>
+      </div>
+      <div class="node">
+        <div class="label">Pi #4</div>
+        <div class="temp"><span class="dot" style="background: rgb(112, 86, 146)"></span>52 °C</div>
+        <svg viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M0,10 L10,9 L20,11 L30,10 L40,9 L50,12 L60,10 L70,9 L80,8 L90,15 L100,16" fill="none" stroke="#52514e" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>
+      </div>
+      <div class="up"><span class="dot"></span>All systems operational</div>
+    </div>
+  </body>
+</html>

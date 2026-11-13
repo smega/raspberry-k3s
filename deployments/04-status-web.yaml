@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: status-web
+  namespace: public-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: status-web
+  template:
+    metadata:
+      labels:
+        app: status-web
+    spec:
+      imagePullSecrets:
+      - name: zot-registry
+      containers:
+        - name: web
+          image: registry.smdoes.eu/raspberry/status-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 30m
+              memory: 32Mi
+            limits:
+              cpu: 150m
+              memory: 96Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: status-web
+  namespace: public-demo
+spec:
+  selector:
+    app: status-web
+  ports:
+    - port: 80
+      targetPort: 80

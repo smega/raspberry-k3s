@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Same dark tile as smega.eu's icon; the content is this page's own:
+       four stacked Pis colored along the page's blue-to-red temperature
+       scale, each with a lit LED. Bars carry the color so it still reads at
+       16px. -->
+  <rect width="64" height="64" rx="14" fill="#020617" />
+
+  <rect x="10" y="9" width="44" height="10" rx="3" fill="#2a6fdb" />
+  <rect x="10" y="21.5" width="44" height="10" rx="3" fill="#6a5fb3" />
+  <rect x="10" y="34" width="44" height="10" rx="3" fill="#a24d8a" />
+  <rect x="10" y="46.5" width="44" height="10" rx="3" fill="#d03b3b" />
+
+  <circle cx="45" cy="14" r="2.5" fill="#f8fafc" />
+  <circle cx="45" cy="26.5" r="2.5" fill="#f8fafc" />
+  <circle cx="45" cy="39" r="2.5" fill="#f8fafc" />
+  <circle cx="45" cy="51.5" r="2.5" fill="#f8fafc" />
+</svg>

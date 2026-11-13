@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-config
+  namespace: public-dashboard
+data:
+  config.yml: |
+    server:
+      address: ":8080"
+      allowed_origins:
+      - "https://cluster.smega.eu"
+    mongo:
+      database: "dashboard"
+    auth:
+      token_ttl_minutes: 60
+      bcrypt_cost: 12
+    kube:
+      kubeconfig: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-backend
+  namespace: public-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-backend
+  template:
+    metadata:
+      labels:
+        app: dashboard-backend
+    spec:
+      serviceAccountName: public-dashboard-sa
+      imagePullSecrets:
+        - name: zot-registry
+      containers:
+        - name: backend
+          image: registry.smdoes.eu/raspberry/dashboard-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-secrets
+                  key: mongo_uri
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-secrets
+                  key: jwt_secret
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yml
+              subPath: config.yml
+          resources:
+            requests:
+              cpu: 30m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: dashboard-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-backend
+  namespace: public-dashboard
+spec:
+  selector:
+    app: dashboard-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-web
+  namespace: public-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-web
+  template:
+    metadata:
+      labels:
+        app: dashboard-web
+    spec:
+      imagePullSecrets:
+        - name: zot-registry
+      containers:
+        - name: web
+          image: registry.smdoes.eu/raspberry/dashboard-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 20m
+              memory: 24Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-web
+  namespace: public-dashboard
+spec:
+  selector:
+    app: dashboard-web
+  ports:
+    - port: 80
+      targetPort: 80

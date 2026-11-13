@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Status | Raspberry Pi k3s lab</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <meta
+      name="description"
+      content="Live status of my home Raspberry Pi Kubernetes cluster: uptime checks for my services, CPU temperature and load of each Pi, and how it's built."
+    />
+    <meta name="author" content="Szabolcs Mega" />
+    <link rel="canonical" href="https://status.smega.eu/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Szabolcs Mega" />
+    <meta property="og:title" content="Live status of my home Kubernetes cluster" />
+    <meta
+      property="og:description"
+      content="Uptime checks, live CPU temperatures of 4 Raspberry Pis, and how it's built: k3s, Gateway API, Prometheus, no database."
+    />
+    <meta property="og:url" content="https://status.smega.eu/" />
+    <meta property="og:image" content="https://status.smega.eu/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Live status of my home Kubernetes cluster, status.smega.eu" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Live status of my home Kubernetes cluster" />
+    <meta
+      name="twitter:description"
+      content="Uptime checks, live CPU temperatures of 4 Raspberry Pis, and how it's built: k3s, Gateway API, Prometheus, no database."
+    />
+    <meta name="twitter:image" content="https://status.smega.eu/og.png" />
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #f9f9f7;
+        color: #0b0b0b;
+      }
+      a {
+        color: inherit;
+      }
+      * {
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

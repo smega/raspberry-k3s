@@ -1,0 +1,20 @@
+# The `kong` namespace itself comes from installing the Kong Gateway API
+# implementation (see kong/kong-values.yml), e.g.:
+#   helm install kong kong/ingress -n kong --create-namespace -f kong/kong-values.yml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public-gateway
+  namespace: kong
+spec:
+  gatewayClassName: kong
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              expose-via-public-gateway: "true"

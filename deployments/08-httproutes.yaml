@@ -1,0 +1,83 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: status-web
+  namespace: public-demo
+spec:
+  parentRefs:
+    - name: public-gateway
+      namespace: kong
+      sectionName: http
+  hostnames:
+    - status.smega.eu
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: status-web
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: status-api
+  namespace: public-demo
+spec:
+  parentRefs:
+    - name: public-gateway
+      namespace: kong
+      sectionName: http
+  hostnames:
+    - api-status.smega.eu
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: status-api
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: whoami
+  namespace: public-demo
+spec:
+  parentRefs:
+    - name: public-gateway
+      namespace: kong
+      sectionName: http
+  hostnames:
+    - whoami.smega.eu
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: whoami
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: public-dashboard
+  namespace: public-dashboard
+spec:
+  parentRefs:
+    - name: public-gateway
+      namespace: kong
+      sectionName: http
+  hostnames:
+    - cluster.smega.eu
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: dashboard-web
+          port: 80

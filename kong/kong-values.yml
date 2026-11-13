@@ -1,0 +1,47 @@
+controller:
+  ingressController:
+    enabled: true
+
+gateway:
+  enabled: true
+  replicaCount: 1
+
+  env:
+    database: "off"
+
+  proxy:
+    enabled: true
+    type: LoadBalancer
+    http:
+      enabled: true
+      servicePort: 80
+      containerPort: 8000
+    tls:
+      enabled: false
+
+  admin:
+    enabled: true
+    type: ClusterIP
+    http:
+      enabled: false
+      servicePort: 8001
+      containerPort: 8001
+    tls:
+      enabled: true
+      servicePort: 8444
+      containerPort: 8444
+
+  manager:
+    enabled: false
+  portal:
+    enabled: false
+  portalapi:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
