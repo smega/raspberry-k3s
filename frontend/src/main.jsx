@@ -582,6 +582,12 @@ function HowItWorksSection() {
             Cloudflare to nginx on a small VPS, then over Tailscale to Kong, which implements the Gateway API in front
             of the apps. Images are built for arm64 and pulled from a private registry.
           </p>
+          <p style={{ ...p, margin: '16px 0 0' }}>
+            Source code, manifests and the full setup:{' '}
+            <a href="https://github.com/smega/raspberry-k3s" target="_blank" rel="noreferrer" style={{ color: INK_PRIMARY, fontWeight: 500 }}>
+              github.com/smega/raspberry-k3s
+            </a>
+          </p>
         </div>
         <LastDeploy />
       </Card>
