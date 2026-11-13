@@ -138,17 +138,16 @@ function ServiceCard({ s }) {
   )
 }
 
-// Same scale as the RGB LED on each Pi (pi-temp-led): full blue at/below
-// 35 °C, full red at/above 75 °C, linear blend in between. Endpoints are
+// Same scale as the RGB LED on each Pi (pi-temp-led, LED_SOURCE=load):
+// blue when idle, red at full CPU load, blended on a square-root curve so the
+// 1-10% these Pis usually sit at still shows as visible color. Endpoints are
 // softened versions of the LED's pure blue/red so they read on a light page.
-const TEMP_MIN_C = 35
-const TEMP_MAX_C = 75
-const TEMP_COLD = [42, 111, 219]
-const TEMP_HOT = [208, 59, 59]
+const LED_COLD = [42, 111, 219]
+const LED_HOT = [208, 59, 59]
 
-function tempColor(c) {
-  const f = Math.min(1, Math.max(0, (c - TEMP_MIN_C) / (TEMP_MAX_C - TEMP_MIN_C)))
-  const [r, g, b] = TEMP_COLD.map((v, i) => Math.round(v + (TEMP_HOT[i] - v) * f))
+function ledColor(cpuPercent) {
+  const f = Math.sqrt(Math.min(1, Math.max(0, cpuPercent / 100)))
+  const [r, g, b] = LED_COLD.map((v, i) => Math.round(v + (LED_HOT[i] - v) * f))
   return `rgb(${r}, ${g}, ${b})`
 }
 
@@ -238,7 +237,21 @@ function NodeCard({ n }) {
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
-        <div style={{ fontWeight: 600, fontSize: '15px', color: INK_PRIMARY }}>{n.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '15px', color: INK_PRIMARY }}>
+          <span
+            title="The color this Pi's RGB LED is showing (CPU load)"
+            style={{
+              width: '12px',
+              height: '12px',
+              borderRadius: '50%',
+              flexShrink: 0,
+              display: 'inline-block',
+              background: n.cpuPercent != null ? ledColor(n.cpuPercent) : INK_MUTED,
+              boxShadow: n.cpuPercent != null ? `0 0 6px ${ledColor(n.cpuPercent)}` : 'none',
+            }}
+          />
+          {n.name}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: INK_SECONDARY, whiteSpace: 'nowrap' }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: state.color, display: 'inline-block' }} />
           {state.label}
@@ -251,11 +264,7 @@ function NodeCard({ n }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-        <span
-          title="Same color the RGB LED on this Pi is showing"
-          style={{ width: '12px', height: '12px', borderRadius: '50%', background: n.tempC != null ? tempColor(n.tempC) : INK_MUTED, display: 'inline-block' }}
-        />
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '14px' }}>
         <span style={{ fontSize: '24px', fontWeight: 600, color: INK_PRIMARY }}>
           {n.tempC != null ? `${n.tempC.toFixed(1)} °C` : '-'}
         </span>
@@ -301,7 +310,7 @@ function ClusterPhoto() {
         />
       </a>
       <figcaption style={{ fontSize: '12px', color: INK_MUTED, marginTop: '6px' }}>
-        The actual cluster. Purple LEDs mean mid-50s °C.
+        The actual cluster. Each LED follows its Pi's CPU load.
       </figcaption>
     </figure>
   )
@@ -334,8 +343,8 @@ function NodesSection({ apiBase }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px', alignItems: 'flex-start', marginBottom: '20px' }}>
         <p style={{ flex: '1 1 320px', margin: 0, color: INK_SECONDARY, lineHeight: 1.6, maxWidth: '560px' }}>
           The four Raspberry Pis that run this page and its checks, as a k3s Kubernetes cluster on a shelf at
-          home. Live readings from the cluster's own Prometheus, refreshed every 15 seconds. The dot uses the same
-          blue-to-red scale as the RGB LED on each Pi.
+          home. Live readings from the cluster's own Prometheus, refreshed every 15 seconds. The dot next to each
+          Pi's name is the color its RGB LED shows: blue when idle, turning red with CPU load.
         </p>
         <ClusterPhoto />
       </div>
@@ -452,7 +461,7 @@ function ArchitectureDiagram() {
         <DiagramArrow x1={right(2) - 20} y1={ROW[3]} x2={left(3) + 20} y2={ROW[2] + BOX_H} label="mounted" lx={right(2) + 6} ly={ROW[3] - 22} anchor="middle" />
         <DiagramArrow x1={cx(3)} y1={ROW[3]} x2={cx(3)} y2={ROW[2] + BOX_H} label="PromQL" lx={cx(3) + 8} ly={ROW[3] - 18} anchor="start" />
 
-        <DiagramBox col={1} y={ROW[4]} title="pi-temp-led" sub="RGB LED on every Pi" />
+        <DiagramBox col={1} y={ROW[4]} title="pi-temp-led" sub="LED shows CPU load" />
         <DiagramBox col={3} y={ROW[4]} title="node-exporter" sub="+ kube-state-metrics" />
         <DiagramArrow x1={cx(3)} y1={ROW[4]} x2={cx(3)} y2={ROW[3] + BOX_H} label="scrape" lx={cx(3) + 8} ly={ROW[4] - 18} anchor="start" />
       </svg>
