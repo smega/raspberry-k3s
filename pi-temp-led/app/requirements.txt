@@ -1,0 +1,7 @@
+# rpi-lgpio is a drop-in replacement for RPi.GPIO (same `import RPi.GPIO`
+# API) built for the newer gpiochip-based kernel driver that Raspberry Pi OS
+# Bookworm ships -- the classic RPi.GPIO package pokes BCM registers
+# directly via /dev/gpiomem and can misbehave on Bookworm. If your nodes run
+# an older OS and this doesn't work, swap this line for RPi.GPIO instead;
+# no code changes needed, the import stays the same either way.
+rpi-lgpio==0.6

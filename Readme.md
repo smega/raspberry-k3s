@@ -35,6 +35,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `cron/` -- a Python CronJob (`check_status.py`) that checks each configured
   service every 5 minutes, keeps a rolling 24h history per service, and
   patches the result into a ConfigMap.
+- `pi-temp-led/` -- a DaemonSet that drives an RGB LED on every Pi from its
+  own CPU load (blue when idle, red when busy), plus its own manifests and
+  README. The status page's per-node dot uses the same color scale.
 - `kong/` -- Helm values for installing Kong as the cluster's Gateway API
   implementation.
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,

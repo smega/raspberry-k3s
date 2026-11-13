@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: pi-temp-led
+  namespace: cpu-led
+spec:
+  selector:
+    matchLabels:
+      app: pi-temp-led
+  template:
+    metadata:
+      labels:
+        app: pi-temp-led
+    spec:
+      automountServiceAccountToken: false
+      # Runs on every node, including the control-plane one -- tolerations
+      # here cover clusters where that node is tainted; harmless no-ops
+      # if it isn't.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      imagePullSecrets:
+        - name: zot-registry
+      containers:
+        - name: led
+          image: registry.smdoes.eu/raspberry/pi-temp-led:latest
+          imagePullPolicy: Always
+          # GPIO access needs real hardware device access -- simplest
+          # reliable way to get it on a home cluster. Not internet-facing,
+          # no K8s API access (automountServiceAccountToken is off above).
+          securityContext:
+            privileged: true
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # What the color follows: CPU load (default) or temperature.
+            - name: LED_SOURCE
+              value: load
+            # Tune without rebuilding the image:
+            # - name: LED_LOAD_CURVE        # sqrt (default) or linear
+            #   value: "sqrt"
+            # - name: LED_LOAD_SMOOTHING    # 0..1, higher reacts faster
+            #   value: "0.35"
+            # - name: LED_TEMP_MIN_C        # LED_SOURCE=temp only
+            #   value: "35"
+            # - name: LED_TEMP_MAX_C
+            #   value: "75"
+            # - name: LED_COMMON_ANODE
+            #   value: "1"
+            - name: LED_SELFTEST_SECONDS
+              value: "8"
+          volumeMounts:
+            - name: gpiomem
+              mountPath: /dev/gpiomem
+            - name: thermal
+              mountPath: /sys/class/thermal
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: gpiomem
+          hostPath:
+            path: /dev/gpiomem
+            type: CharDevice
+        - name: thermal
+          hostPath:
+            path: /sys/class/thermal
+            type: Directory
