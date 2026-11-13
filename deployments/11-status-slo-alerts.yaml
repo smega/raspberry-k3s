@@ -1,0 +1,115 @@
+# SLO alerting for the services on the status page.
+#
+# status-api exposes the checker's latest result per service as
+# status_service_up (port 9100, in-cluster only). Prometheus scrapes it, and
+# the rules below turn it into multi-window, multi-burn-rate alerts (Google
+# SRE Workbook, ch. 5) against the same SLO the page shows: 99.5% over 30
+# days, so the error budget is 0.5%.
+#
+#   burn rate  long window  short window  budget spent  severity
+#   14.4x      1h           5m            2% in 1h      critical (page)
+#   6x         6h           30m           5% in 6h      critical (page)
+#   3x         1d           2h            10% in 1d     warning
+#   1x         3d           6h            10% in 3d     warning
+#
+# The short window makes an alert resolve soon after the service recovers.
+# The `release: grafana` labels are what kube-prometheus-stack's Prometheus
+# selects on.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: status-api
+  namespace: public-demo
+  labels:
+    release: grafana
+spec:
+  selector:
+    matchLabels:
+      app: status-api
+  endpoints:
+    - port: metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: status-slo
+  namespace: public-demo
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: status-slo.recording
+      interval: 1m
+      rules:
+        - record: status:error_ratio:avg5m
+          expr: 1 - avg_over_time(status_service_up[5m])
+        - record: status:error_ratio:avg30m
+          expr: 1 - avg_over_time(status_service_up[30m])
+        - record: status:error_ratio:avg1h
+          expr: 1 - avg_over_time(status_service_up[1h])
+        - record: status:error_ratio:avg2h
+          expr: 1 - avg_over_time(status_service_up[2h])
+        - record: status:error_ratio:avg6h
+          expr: 1 - avg_over_time(status_service_up[6h])
+        - record: status:error_ratio:avg1d
+          expr: 1 - avg_over_time(status_service_up[1d])
+        - record: status:error_ratio:avg3d
+          expr: 1 - avg_over_time(status_service_up[3d])
+
+    - name: status-slo.alerts
+      rules:
+        - alert: StatusSLOFastBurn
+          expr: |
+            (status:error_ratio:avg1h > (14.4 * 0.005) and status:error_ratio:avg5m > (14.4 * 0.005))
+            or
+            (status:error_ratio:avg6h > (6 * 0.005) and status:error_ratio:avg30m > (6 * 0.005))
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} is burning its error budget fast"
+            description: >-
+              {{ $labels.service }} is failing checks fast enough to use up a
+              big part of its 30-day error budget (SLO 99.5%) within hours.
+              Error ratio now: {{ $value | humanizePercentage }}.
+              https://status.smega.eu
+
+        - alert: StatusSLOSlowBurn
+          expr: |
+            (status:error_ratio:avg1d > (3 * 0.005) and status:error_ratio:avg2h > (3 * 0.005))
+            or
+            (status:error_ratio:avg3d > 0.005 and status:error_ratio:avg6h > 0.005)
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.service }} is slowly eating its error budget"
+            description: >-
+              {{ $labels.service }} has been failing often enough over the last
+              days to run out of its 30-day error budget (SLO 99.5%) before the
+              window ends. Error ratio: {{ $value | humanizePercentage }}.
+              https://status.smega.eu
+
+        # If the checker stops, status_service_up freezes at its last value
+        # and the burn-rate alerts go blind - so watch the watcher too.
+        - alert: StatusCheckerStale
+          expr: time() - status_data_generated_timestamp_seconds > 15 * 60
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "The status checker has not run for {{ $value | humanizeDuration }}"
+            description: >-
+              The status-checker CronJob (every 5 minutes) has not written new
+              results, so the status page and the SLO alerts show stale data.
+              Check the CronJob and its last Job in public-demo.
+
+        - alert: StatusMetricsMissing
+          expr: absent(status_data_readable == 1)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No status metrics from status-api"
+            description: >-
+              Prometheus gets no readable status data from status-api
+              (public-demo, port 9100), so the SLO alerts cannot fire.

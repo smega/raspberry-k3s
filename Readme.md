@@ -29,6 +29,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   "Pi #N - role" instead of exposing hostnames or IPs.
   `/badge/<service>.svg` serves a shields-style uptime badge per service
   (slug of its name, e.g. `personal-site`), for READMEs.
+  On a separate, unrouted port (9100) it also exposes the checker's results
+  as Prometheus metrics (`status_service_up`, latency, data age), which feed
+  the SLO burn-rate alerts in `deployments/11-status-slo-alerts.yaml`.
 - `scripts/publish-status.sh` -- builds and pushes the status page images
   (arm64); bakes the current commit into status-web for its "Last deploy"
   line.
@@ -68,7 +71,14 @@ kubectl apply -f deployments/07-gateway.yaml
 kubectl apply -f deployments/08-httproutes.yaml
 kubectl apply -f deployments/09-dashboard-readonly-rbac.yaml
 kubectl apply -f deployments/10-dashboard.yaml
+kubectl apply -f deployments/11-status-slo-alerts.yaml
 ```
+
+`11-status-slo-alerts.yaml` needs kube-prometheus-stack (the
+ServiceMonitor/PrometheusRule CRDs, and a Prometheus selecting
+`release: grafana` - change the label to your release name). It alerts on
+the page's own SLO (99.5% over 30 days) with multi-window, multi-burn-rate
+rules, and on the checker itself going stale.
 
 `deployments/07-gateway.yaml` needs `gatewayClassName` set to whatever Gateway
 API implementation you're running (`kong`, if you're using the Helm chart in

@@ -27,7 +27,11 @@ spec:
             - name: PROMETHEUS_URL
               value: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
+            # /metrics for the SLO alerts; no HTTPRoute points here.
+            - name: metrics
+              containerPort: 9100
           volumeMounts:
             - name: status-data
               mountPath: /data
@@ -49,9 +53,15 @@ kind: Service
 metadata:
   name: status-api
   namespace: public-demo
+  labels:
+    app: status-api
 spec:
   selector:
     app: status-api
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 8080
+    - name: metrics
+      port: 9100
+      targetPort: 9100

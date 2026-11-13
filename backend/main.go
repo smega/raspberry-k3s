@@ -87,6 +87,17 @@ func main() {
 		c.JSON(http.StatusOK, resp)
 	})
 
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			writeMetrics(w, dataFile)
+		})
+		log.Printf("metrics listening on :9100")
+		if err := http.ListenAndServe(":9100", mux); err != nil {
+			log.Fatalf("metrics server failed: %v", err)
+		}
+	}()
+
 	addr := ":8080"
 	log.Printf("status-api listening on %s", addr)
 	if err := router.Run(addr); err != nil {
