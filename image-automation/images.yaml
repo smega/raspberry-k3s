@@ -1,0 +1,179 @@
+# One ImageRepository + ImagePolicy per image CI builds (build-image.yml).
+# The policy picks the newest main-<unix time>-<sha> tag; the automation in
+# automation.yaml writes it into the manifests' "$imagepolicy" markers.
+#
+# The registry needs credentials: zot-registry in flux-system, a copy of
+# the cluster's pull secret (created by hand, like the other secrets).
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: status-web
+  namespace: flux-system
+spec:
+  image: registry.smdoes.eu/raspberry/status-web
+  interval: 5m
+  secretRef:
+    name: zot-registry
+  exclusionList:
+    - "^latest$"
+    - "\\.sig$"
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: status-web
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: status-web
+  filterTags:
+    pattern: "^main-(?P<ts>[0-9]+)-[a-f0-9]{7}$"
+    extract: "$ts"
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: status-api
+  namespace: flux-system
+spec:
+  image: registry.smdoes.eu/raspberry/status-api
+  interval: 5m
+  secretRef:
+    name: zot-registry
+  exclusionList:
+    - "^latest$"
+    - "\\.sig$"
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: status-api
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: status-api
+  filterTags:
+    pattern: "^main-(?P<ts>[0-9]+)-[a-f0-9]{7}$"
+    extract: "$ts"
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: status-checker
+  namespace: flux-system
+spec:
+  image: registry.smdoes.eu/raspberry/status-checker
+  interval: 5m
+  secretRef:
+    name: zot-registry
+  exclusionList:
+    - "^latest$"
+    - "\\.sig$"
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: status-checker
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: status-checker
+  filterTags:
+    pattern: "^main-(?P<ts>[0-9]+)-[a-f0-9]{7}$"
+    extract: "$ts"
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: pi-temp-led
+  namespace: flux-system
+spec:
+  image: registry.smdoes.eu/raspberry/pi-temp-led
+  interval: 5m
+  secretRef:
+    name: zot-registry
+  exclusionList:
+    - "^latest$"
+    - "\\.sig$"
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: pi-temp-led
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: pi-temp-led
+  filterTags:
+    pattern: "^main-(?P<ts>[0-9]+)-[a-f0-9]{7}$"
+    extract: "$ts"
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: dashboard-backend
+  namespace: flux-system
+spec:
+  image: registry.smdoes.eu/raspberry/dashboard-backend
+  interval: 5m
+  secretRef:
+    name: zot-registry
+  exclusionList:
+    - "^latest$"
+    - "\\.sig$"
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: dashboard-backend
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: dashboard-backend
+  filterTags:
+    pattern: "^main-(?P<ts>[0-9]+)-[a-f0-9]{7}$"
+    extract: "$ts"
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: dashboard-web
+  namespace: flux-system
+spec:
+  image: registry.smdoes.eu/raspberry/dashboard-web
+  interval: 5m
+  secretRef:
+    name: zot-registry
+  exclusionList:
+    - "^latest$"
+    - "\\.sig$"
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: dashboard-web
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: dashboard-web
+  filterTags:
+    pattern: "^main-(?P<ts>[0-9]+)-[a-f0-9]{7}$"
+    extract: "$ts"
+  policy:
+    numerical:
+      order: asc

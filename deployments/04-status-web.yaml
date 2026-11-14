@@ -27,7 +27,7 @@ spec:
       - name: zot-registry
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/status-web:latest
+          image: registry.smdoes.eu/raspberry/status-web:latest # {"$imagepolicy": "flux-system:status-web"}
           imagePullPolicy: Always
           ports:
             - containerPort: 80

@@ -1,0 +1,119 @@
+# Builds one arm64 image, pushes it to registry.smdoes.eu, scans it with
+# Trivy and signs it with cosign (keyless, GitHub OIDC). Called by
+# images.yml here and by smega/cluster-dashboard.
+#
+# Tag: main-<unix time>-<short sha>. The time makes tags sortable, so
+# Flux's ImagePolicy can pick the newest (clusters/home/image-automation);
+# the sha says which commit it is. :latest is still pushed for now, until
+# every manifest follows the tags.
+name: build-image
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Name under registry.smdoes.eu/raspberry/
+        required: true
+        type: string
+      context:
+        description: Docker build context (directory with the Dockerfile)
+        required: true
+        type: string
+      build-status-web-args:
+        description: Bake the commit into the page (status-web's "Last deploy" line)
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      REGISTRY_USERNAME:
+        required: true
+      REGISTRY_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write          # cosign keyless signing
+  security-events: write   # Trivy results in the Security tab
+
+env:
+  REGISTRY: registry.smdoes.eu
+  REPO: registry.smdoes.eu/raspberry/${{ inputs.image }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag
+        id: tag
+        run: |
+          {
+            echo "tag=main-$(date -u +%s)-${GITHUB_SHA::7}"
+            echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo 'message<<EOF'
+            git log -1 --format=%s
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REPO }}:${{ steps.tag.outputs.tag }}
+            ${{ env.REPO }}:latest
+          build-args: |
+            ${{ inputs.build-status-web-args && format('VITE_BUILD_SHA={0}', github.sha) || '' }}
+            ${{ inputs.build-status-web-args && format('VITE_BUILD_TIME={0}', steps.tag.outputs.time) || '' }}
+            ${{ inputs.build-status-web-args && format('VITE_BUILD_MESSAGE={0}', steps.tag.outputs.message) || '' }}
+          cache-from: type=gha,scope=${{ inputs.image }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image }}
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign
+        run: cosign sign --yes "${REPO}@${{ steps.build.outputs.digest }}"
+
+      # Report only for now (exit-code 0): the findings go to the Security
+      # tab; failing the build on them comes once the backlog is known.
+      - name: Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        env:
+          TRIVY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        with:
+          image-ref: ${{ env.REPO }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy.sarif') != ''
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-${{ inputs.image }}
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ inputs.image }}"
+            echo
+            echo "- tag: \`${{ steps.tag.outputs.tag }}\`"
+            echo "- digest: \`${{ steps.build.outputs.digest }}\`"
+            echo "- signed with cosign (keyless, this workflow's identity)"
+          } >> "$GITHUB_STEP_SUMMARY"

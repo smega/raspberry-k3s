@@ -27,7 +27,7 @@ spec:
       - name: zot-registry
       containers:
         - name: api
-          image: registry.smdoes.eu/raspberry/status-api:latest
+          image: registry.smdoes.eu/raspberry/status-api:latest # {"$imagepolicy": "flux-system:status-api"}
           imagePullPolicy: Always
           env:
             - name: STATUS_DATA_FILE

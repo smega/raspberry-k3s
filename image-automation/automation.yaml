@@ -1,0 +1,50 @@
+# Flux commits new image tags into this repo's manifests: every image line
+# with a {"$imagepolicy": "flux-system:<name>"} marker gets the tag that
+# policy picked (images.yaml). Those commits go to main and are then
+# applied like any other change.
+#
+# Pushing needs write access, so this uses its own GitRepository over SSH
+# with a write deploy key (secret flux-raspberry-k3s-write, created by
+# hand); the read-only flux-system source stays as it is.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: raspberry-k3s-write
+  namespace: flux-system
+spec:
+  url: ssh://git@github.com/smega/raspberry-k3s
+  ref:
+    branch: main
+  interval: 10m
+  secretRef:
+    name: flux-raspberry-k3s-write
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageUpdateAutomation
+metadata:
+  name: raspberry-k3s
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: raspberry-k3s-write
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: |
+        Deploy new images
+
+        {{ range .Changed.Changes -}}
+        - {{ .OldValue }} -> {{ .NewValue }}
+        {{ end -}}
+    push:
+      branch: main
+  update:
+    path: ./
+    strategy: Setters

@@ -18,7 +18,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: checker
-              image: registry.smdoes.eu/raspberry/status-checker:latest
+              image: registry.smdoes.eu/raspberry/status-checker:latest # {"$imagepolicy": "flux-system:status-checker"}
               imagePullPolicy: Always
               env:
                 - name: STATUS_NAMESPACE

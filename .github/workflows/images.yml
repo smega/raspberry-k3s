@@ -1,0 +1,115 @@
+# Push to main -> build the images whose directory changed. Flux picks up
+# the new tags and commits them into the manifests (image automation), so
+# nothing is deployed by hand anymore.
+#
+# Only push and manual runs, never pull requests: the registry secrets
+# must not be reachable from a fork's PR.
+name: images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - frontend/**
+      - backend/**
+      - cron/**
+      - pi-temp-led/Dockerfile
+      - pi-temp-led/app/**
+      - .github/workflows/images.yml
+      - .github/workflows/build-image.yml
+  workflow_dispatch:
+    inputs:
+      all:
+        description: Build every image, changed or not
+        type: boolean
+        default: false
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      web: ${{ steps.f.outputs.web == 'true' || inputs.all == true }}
+      api: ${{ steps.f.outputs.api == 'true' || inputs.all == true }}
+      checker: ${{ steps.f.outputs.checker == 'true' || inputs.all == true }}
+      led: ${{ steps.f.outputs.led == 'true' || inputs.all == true }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            shared: &shared
+              - .github/workflows/build-image.yml
+            web:
+              - *shared
+              - frontend/**
+            api:
+              - *shared
+              - backend/**
+            checker:
+              - *shared
+              - cron/**
+            led:
+              - *shared
+              - pi-temp-led/Dockerfile
+              - pi-temp-led/app/**
+
+  status-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: status-web
+      context: frontend
+      build-status-web-args: true
+    secrets: inherit
+
+  status-api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: status-api
+      context: backend
+    secrets: inherit
+
+  status-checker:
+    needs: changes
+    if: needs.changes.outputs.checker == 'true'
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: status-checker
+      context: cron
+    secrets: inherit
+
+  pi-temp-led:
+    needs: changes
+    if: needs.changes.outputs.led == 'true'
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: pi-temp-led
+      context: pi-temp-led
+    secrets: inherit
