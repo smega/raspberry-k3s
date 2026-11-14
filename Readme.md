@@ -74,11 +74,12 @@ clusters/home/
   apps.yaml        -> ./deployments         (after monitoring)
                     -> ./pi-temp-led/deployments
   private.yaml     -> a private repo        (probes with private hostnames)
+  notifications.yaml  failed reconciles -> ntfy (same topic as the alerts)
 ```
 
 Secrets are never in git; they're created by hand in the cluster
 (registry pull secret, dashboard secrets, Alertmanager webhook URLs,
-Grafana admin, the private repo's deploy key).
+Grafana admin, the private repo's deploy key, the ntfy URL for Flux).
 
 The status ConfigMap is seed-only (`kustomize.toolkit.fluxcd.io/ssa:
 IfNotPresent`): the checker owns its data, Flux only creates it if missing.

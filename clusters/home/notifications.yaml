@@ -1,0 +1,35 @@
+# Flux reconciliation failures (a Kustomization that doesn't apply, a Helm
+# upgrade that fails, a repo that can't be fetched) go to the same ntfy
+# topic as the Prometheus alerts. The topic URL is the Secret
+# flux-system/ntfy-flux (key `address`, created by hand), with ntfy's
+# message templating in the query string:
+#   https://ntfy.sh/<topic>?tpl=1&t=Flux: {{.involvedObject.kind}}/{{.involvedObject.name}} {{.reason}}&m={{.message}}&priority=high
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Provider
+metadata:
+  name: ntfy
+  namespace: flux-system
+spec:
+  type: generic
+  secretRef:
+    name: ntfy-flux
+---
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Alert
+metadata:
+  name: reconcile-failures
+  namespace: flux-system
+spec:
+  providerRef:
+    name: ntfy
+  eventSeverity: error
+  eventSources:
+    - kind: GitRepository
+      name: '*'
+    - kind: Kustomization
+      name: '*'
+    - kind: HelmRelease
+      name: '*'
+      namespace: monitoring
+    - kind: HelmRepository
+      name: '*'
