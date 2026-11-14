@@ -57,6 +57,7 @@ gateway:
   proxy:
     enabled: true
     type: LoadBalancer
+    externalTrafficPolicy: Local
     http:
       enabled: true
       containerPort: 8000
