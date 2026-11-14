@@ -49,6 +49,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `kong/` -- Kong (the cluster's Gateway API implementation) as a Flux
   HelmRelease and its values: 2 gateway and 2 controller replicas on
   different Pis.
+- `kured/` -- automatic, one-at-a-time node reboots after OS updates
+  (Mon-Thu 03:00-06:00, never while an alert is firing).
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,
   the apps above, the Gateway/HTTPRoutes, and the readonly dashboard),
   applied roughly in filename order.
@@ -73,6 +75,7 @@ clusters/home/
   flux-system/   Flux itself (pinned install.yaml) + "follow this repo"
   monitoring.yaml  -> ./monitoring          (HelmReleases, PV)
   kong.yaml        -> ./kong                (Kong HelmRelease)
+  kured.yaml       -> ./kured               (automatic node reboots)
   apps.yaml        -> ./deployments         (after monitoring)
                     -> ./pi-temp-led/deployments
   private.yaml     -> a private repo        (probes with private hostnames)

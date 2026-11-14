@@ -1,0 +1,49 @@
+# kured reboots a node when /var/run/reboot-required exists, one node at a
+# time: cordon, drain (the PDBs keep the public sites up), reboot,
+# uncordon. The flag comes from unattended-upgrades on the Pis via an apt
+# hook (infra repo: os-upgrade/setup-unattended-upgrades.sh), since
+# Raspbian's kernel packages don't set it themselves.
+configuration:
+  # Nights only, Monday to Thursday: unattended-upgrades runs 01:00-02:00,
+  # so a new kernel gets rebooted into the same night, and a reboot that
+  # goes wrong is never left over a weekend.
+  rebootDays: [mo, tu, we, th]
+  startTime: "03:00"
+  endTime: "06:00"
+  timeZone: Europe/London
+  period: 10m
+  # Don't reboot while anything is firing: a node going down on top of an
+  # incident only makes it worse. Watchdog/InfoInhibitor always fire;
+  # CPUThrottlingHigh is info-level noise on Pis.
+  prometheusUrl: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+  alertFilterRegexp: ^(Watchdog|InfoInhibitor|CPUThrottlingHigh)$
+  alertFiringOnly: true
+  # A drain that can't finish (a PDB that never allows it) gives up and
+  # leaves the node up rather than rebooting it anyway.
+  drainTimeout: 15m
+  forceReboot: false
+  # Lock (one node at a time) is released after 1h even if the node
+  # holding it never came back.
+  lockTtl: 1h
+  annotateNodes: true
+  concurrency: 1
+  messageTemplateDrain: "Draining %s for a reboot (pending OS update)"
+  messageTemplateReboot: "Rebooting %s"
+  messageTemplateUncordon: "%s rebooted and back in service"
+
+# ntfy URL (with the topic) from a Secret created by hand:
+#   kubectl -n kube-system create secret generic kured-notify \
+#     --from-literal=url='ntfy://ntfy.sh/<topic>?title=kured'
+extraEnvVars:
+  - name: KURED_NOTIFY_URL
+    valueFrom:
+      secretKeyRef:
+        name: kured-notify
+        key: url
+
+resources:
+  requests:
+    cpu: 5m
+    memory: 24Mi
+  limits:
+    memory: 64Mi
