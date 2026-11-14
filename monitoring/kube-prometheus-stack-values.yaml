@@ -1,0 +1,150 @@
+# Values for the `grafana` Helm release (kube-prometheus-stack, namespace
+# monitoring). Applied by Flux: monitoring/kube-prometheus-stack.yaml turns
+# this file into a ConfigMap the HelmRelease reads, so a commit here is a
+# helm upgrade. The chart version lives in that HelmRelease.
+#
+# Needs these Secrets in monitoring first (created by hand, never in git):
+#   alertmanager-notify - ntfy/RunGuard webhook URLs (see below)
+#   grafana-admin       - admin-user / admin-password
+# The HelmRelease skips CRDs; on a chart bump that changes the operator
+# version, apply the new CRDs first:
+#   helm show crds prometheus-community/kube-prometheus-stack --version X \
+#     | kubectl apply --server-side --force-conflicts -f -
+
+# k3s runs the scheduler, controller-manager and kube-proxy inside the one
+# k3s process and doesn't expose them as separate scrape targets, and the
+# datastore is not a standalone etcd. These only produced permanently firing
+# critical *Down alerts.
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+# No nginx ingress controller any more (Kong replaced it). Grafana is on the
+# Tailscale NodePort, Prometheus/Alertmanager via port-forward.
+grafana:
+  ingress:
+    enabled: false
+  # Admin login from a Secret instead of a plain-text value (the old value
+  # leaked into a session log on 2026-11-13 and was rotated with this).
+  admin:
+    existingSecret: grafana-admin
+  # Dashboards/users live in SQLite on this PVC (local-path, 20Gi).
+  persistence:
+    enabled: true
+    accessModes: [ReadWriteOnce]
+    size: 20Gi
+    finalizers: [kubernetes.io/pvc-protection]
+  # Reached over Tailscale at http://kube-master:31296.
+  service:
+    type: NodePort
+    nodePort: 31296
+prometheus:
+  ingress:
+    enabled: false
+  prometheusSpec:
+    # TSDB on the USB stick in kube-master (prometheus-storage/), so a
+    # restart no longer wipes the history. 30d covers the SLO window; the
+    # size cap leaves headroom on the 57 GB stick (PV is 50Gi).
+    retention: 30d
+    retentionSize: 40GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: prometheus-usb
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  ingress:
+    enabled: false
+  alertmanagerSpec:
+    # Don't go below v0.28: 0.27.0 panics when a webhook configured with
+    # url_file gets a 4xx back and crash-loops (hit 2026-11-14, when ntfy
+    # rejected an oversized message). The chart's default is newer now.
+    #
+    # Silences and the notification log on disk: on an emptyDir, every
+    # Alertmanager restart forgot what it had already sent (the 2026-11-14
+    # crash loop re-sent the same alerts each time) and dropped all silences.
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 1Gi
+    # Secret alertmanager-notify (created by hand, never in git), mounted at
+    # /etc/alertmanager/secrets/alertmanager-notify/:
+    #   ntfy-critical-url     - https://ntfy.sh/<topic>?template=alertmanager&priority=high&tags=rotating_light
+    #   ntfy-warning-url      - https://ntfy.sh/<topic>?template=alertmanager&tags=warning
+    #   runguard-watchdog-url - https://runguard.smega.eu/hb/<key> of the
+    #                           "alertmanager watchdog" RunGuard job
+    # The ntfy topic name is the only access control on ntfy.sh, so it is a
+    # long random string and lives only in this Secret.
+    secrets:
+      - alertmanager-notify
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: "null"
+      group_by: [alertname, namespace, service, slug]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      routes:
+        # Dead man's switch: Watchdog always fires, so RunGuard (on the manage
+        # VPS, outside the cluster) gets a ping every ~5 min while
+        # Prometheus -> Alertmanager works end to end. When the pings stop,
+        # RunGuard alerts on ntfy.
+        - matchers: [alertname = "Watchdog"]
+          receiver: runguard
+          group_wait: 0s
+          group_interval: 1m
+          repeat_interval: 5m
+        - matchers: [alertname = "InfoInhibitor"]
+          receiver: "null"
+        - matchers: [severity = "critical"]
+          receiver: ntfy-critical
+          repeat_interval: 4h
+        - matchers: [severity = "warning"]
+          receiver: ntfy-warning
+          repeat_interval: 24h
+    inhibit_rules:
+      - source_matchers: [severity = critical]
+        target_matchers: [severity =~ warning|info]
+        equal: [namespace, alertname]
+      - source_matchers: [severity = warning]
+        target_matchers: [severity = info]
+        equal: [namespace, alertname]
+      - source_matchers: [alertname = InfoInhibitor]
+        target_matchers: [severity = info]
+        equal: [namespace]
+      - target_matchers: [alertname = InfoInhibitor]
+    receivers:
+      - name: "null"
+      # ntfy.sh renders Alertmanager's webhook JSON itself (?template=alertmanager).
+      - name: ntfy-critical
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-critical-url
+            send_resolved: true
+            # ntfy rejects a templated message over 4 KB (HTTP 400).
+            max_alerts: 3
+      - name: ntfy-warning
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-warning-url
+            send_resolved: true
+            max_alerts: 3
+      - name: runguard
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/runguard-watchdog-url
+            send_resolved: false
+    templates:
+      - /etc/alertmanager/config/*.tmpl

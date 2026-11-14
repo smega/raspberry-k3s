@@ -1,0 +1,30 @@
+# The private half (smega/raspberry-k3s-private): probes with private
+# hostnames/IPs and the devlog app. Read with a read-only deploy key kept in
+# the Secret flux-system/raspberry-k3s-private (created by hand).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: raspberry-k3s-private
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: ssh://git@github.com/smega/raspberry-k3s-private
+  ref:
+    branch: main
+  secretRef:
+    name: raspberry-k3s-private
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: private
+  namespace: flux-system
+spec:
+  interval: 30m
+  path: ./
+  prune: false
+  dependsOn:
+    - name: monitoring
+  sourceRef:
+    kind: GitRepository
+    name: raspberry-k3s-private

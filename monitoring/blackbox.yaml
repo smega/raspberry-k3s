@@ -1,0 +1,21 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: blackbox
+  namespace: monitoring
+spec:
+  releaseName: blackbox
+  interval: 1h
+  timeout: 10m
+  chart:
+    spec:
+      chart: prometheus-blackbox-exporter
+      version: 11.21.2
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: blackbox-values
+      valuesKey: values.yaml

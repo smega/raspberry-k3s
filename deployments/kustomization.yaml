@@ -1,0 +1,18 @@
+# Everything in deployments/, in apply order. Flux applies this
+# (clusters/home/apps.yaml); by hand it's `kubectl apply -k deployments/`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespaces.yaml
+  - 01-status-data-configmap.yaml
+  - 02-status-checker-rbac.yaml
+  - 03-status-api.yaml
+  - 04-status-web.yaml
+  - 05-status-checker-cronjob.yaml
+  - 06-whoami.yaml
+  - 07-gateway.yaml
+  - 08-httproutes.yaml
+  - 09-dashboard-readonly-rbac.yaml
+  - 10-dashboard.yaml
+  - 11-status-slo-alerts.yaml
+  - 12-cert-expiry.yaml

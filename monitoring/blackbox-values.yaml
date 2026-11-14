@@ -1,8 +1,6 @@
-# Helm values for prometheus-community/prometheus-blackbox-exporter, used
-# for TLS certificate expiry probes (deployments/12-cert-expiry.yaml).
-#
-#   helm upgrade --install blackbox prometheus-community/prometheus-blackbox-exporter \
-#     --version 11.21.2 -n monitoring -f blackbox/blackbox-values.yaml
+# Values for the `blackbox` release (prometheus-blackbox-exporter), used for
+# TLS certificate expiry probes (deployments/12-cert-expiry.yaml). Applied by
+# Flux via monitoring/blackbox.yaml.
 #
 # Probes are Probe objects (prometheus-operator), not chart-managed
 # ServiceMonitors, so targets live next to the alert rules.

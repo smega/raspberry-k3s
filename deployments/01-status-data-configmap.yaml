@@ -3,6 +3,10 @@ kind: ConfigMap
 metadata:
   name: status-data
   namespace: public-demo
+  annotations:
+    # Seed only: the status-checker CronJob owns this ConfigMap's data from
+    # then on. Without this, every Flux sync would reset the history.
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
 data:
   status-data.json: |
     {

@@ -1,0 +1,23 @@
+# Monitoring stack, applied by Flux (clusters/home/monitoring.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - helmrepositories.yaml
+  - prometheus-storage.yaml
+  - kube-prometheus-stack.yaml
+  - blackbox.yaml
+configMapGenerator:
+  - name: kube-prometheus-stack-values
+    namespace: monitoring
+    files:
+      - values.yaml=kube-prometheus-stack-values.yaml
+  - name: blackbox-values
+    namespace: monitoring
+    files:
+      - values.yaml=blackbox-values.yaml
+generatorOptions:
+  # Fixed names (the HelmReleases refer to them), and the watch label so
+  # helm-controller upgrades as soon as a values file changes.
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled

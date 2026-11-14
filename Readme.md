@@ -41,8 +41,11 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `pi-temp-led/` -- a DaemonSet that drives an RGB LED on every Pi from its
   own CPU load (blue when idle, red when busy), plus its own manifests and
   README. The status page's per-node dot uses the same color scale.
-- `blackbox/` -- Helm values for the blackbox exporter that probes TLS
-  certificates (expiry alerts in `deployments/12-cert-expiry.yaml`).
+- `clusters/home/` -- Flux: the cluster follows this repo (see "GitOps"
+  below).
+- `monitoring/` -- kube-prometheus-stack and the blackbox exporter as Flux
+  HelmReleases, their values files, and Prometheus's storage (a local PV on
+  a USB stick in the control-plane Pi).
 - `kong/` -- Helm values for installing Kong as the cluster's Gateway API
   implementation.
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,
@@ -59,43 +62,45 @@ read Secret contents, and since this is a ClusterRole (not namespace-scoped),
 including it would let the dashboard's own token read every Secret on the
 cluster. See `deployments/09-dashboard-readonly-rbac.yaml`.
 
-## Apply order
+## GitOps (Flux)
 
-```sh
-kubectl apply -f deployments/00-namespaces.yaml
-kubectl apply -f deployments/01-status-data-configmap.yaml
-kubectl apply -f deployments/02-status-checker-rbac.yaml
-kubectl apply -f deployments/03-status-api.yaml
-kubectl apply -f deployments/04-status-web.yaml
-kubectl apply -f deployments/05-status-checker-cronjob.yaml
-kubectl apply -f deployments/06-whoami.yaml
-kubectl apply -f deployments/07-gateway.yaml
-kubectl apply -f deployments/08-httproutes.yaml
-kubectl apply -f deployments/09-dashboard-readonly-rbac.yaml
-kubectl apply -f deployments/10-dashboard.yaml
-kubectl apply -f deployments/11-status-slo-alerts.yaml
-helm upgrade --install blackbox prometheus-community/prometheus-blackbox-exporter \
-  --version 11.21.2 -n monitoring -f blackbox/blackbox-values.yaml
-kubectl apply -f deployments/12-cert-expiry.yaml
+The cluster runs [Flux](https://fluxcd.io) and follows the `main` branch of
+this repo: a commit is a deploy, nothing gets `kubectl apply`'d by hand.
+
+```
+clusters/home/
+  flux-system/   Flux itself (pinned install.yaml) + "follow this repo"
+  monitoring.yaml  -> ./monitoring          (HelmReleases, PV)
+  apps.yaml        -> ./deployments         (after monitoring)
+                    -> ./pi-temp-led/deployments
+  private.yaml     -> a private repo        (probes with private hostnames)
 ```
 
-`11-status-slo-alerts.yaml` needs kube-prometheus-stack (the
-ServiceMonitor/PrometheusRule CRDs, and a Prometheus selecting
-`release: grafana` - change the label to your release name). It alerts on
-the page's own SLO (99.5% over 30 days) with multi-window, multi-burn-rate
-rules, and on the checker itself going stale.
+Secrets are never in git; they're created by hand in the cluster
+(registry pull secret, dashboard secrets, Alertmanager webhook URLs,
+Grafana admin, the private repo's deploy key).
 
-`deployments/07-gateway.yaml` needs `gatewayClassName` set to whatever Gateway
-API implementation you're running (`kong`, if you're using the Helm chart in
-`kong/kong-values.yml`), and lives in the `kong` namespace -- the namespace
-the Kong Helm release itself creates, not one of the namespaces in
-`00-namespaces.yaml`. The dashboard also needs a `dashboard-secrets` Secret
-(`mongo_uri`, `jwt_secret`) created separately -- never commit that Secret's
-values here.
+The status ConfigMap is seed-only (`kustomize.toolkit.fluxcd.io/ssa:
+IfNotPresent`): the checker owns its data, Flux only creates it if missing.
 
-By default the Gateway only accepts HTTPRoutes from namespaces labelled
-`expose-via-public-gateway: "true"` (see `00-namespaces.yaml`) -- so adding a
-new public app means labelling its namespace, not touching the Gateway.
+To run your own copy without Flux: install the charts in `monitoring/`
+with helm (same values files), then `kubectl apply -k deployments/`.
+
+Notes for your own copy:
+- `11-status-slo-alerts.yaml` and `12-cert-expiry.yaml` need
+  kube-prometheus-stack (the ServiceMonitor/PrometheusRule/Probe CRDs, and a
+  Prometheus selecting `release: grafana` - change the label to your release
+  name). They alert on the page's own SLO (99.5% over 30 days) with
+  multi-window, multi-burn-rate rules, on the checker going stale, and on TLS
+  certificates close to expiry.
+- `07-gateway.yaml` uses `gatewayClassName: kong` (the Helm chart in
+  `kong/kong-values.yml`) and lives in the `kong` namespace the Kong release
+  creates. Change the class if you run another Gateway API implementation.
+- The dashboard needs a `dashboard-secrets` Secret (`mongo_uri`,
+  `jwt_secret`), created separately.
+- The Gateway only accepts HTTPRoutes from namespaces labelled
+  `expose-via-public-gateway: "true"` (see `00-namespaces.yaml`), so a new
+  public app means labelling its namespace, not touching the Gateway.
 
 ## Configuring which services the status page checks
 

@@ -1,0 +1,30 @@
+# Prometheus's TSDB on the USB stick in kube-master (see prepare-usb.sh).
+# A static local PV: no provisioner, bound to the one node the stick is in,
+# and Retain so a deleted PVC never wipes the data.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: prometheus-usb
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-usb
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: prometheus-usb
+  local:
+    path: /mnt/prometheus/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [kube-master]

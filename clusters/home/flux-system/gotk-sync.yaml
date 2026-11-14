@@ -1,0 +1,26 @@
+# The cluster follows this public repo: every 5 minutes source-controller
+# pulls main, and the flux-system Kustomization applies ./clusters/home,
+# which in turn defines the other Kustomizations (monitoring, apps, ...).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/smega/raspberry-k3s
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./clusters/home
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
