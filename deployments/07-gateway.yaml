@@ -1,6 +1,6 @@
 # The `kong` namespace itself comes from installing the Kong Gateway API
-# implementation (see kong/kong-values.yml), e.g.:
-#   helm install kong kong/ingress -n kong --create-namespace -f kong/kong-values.yml
+# implementation (Flux: kong/kong.yaml), or by hand:
+#   helm install kong kong/ingress --version 0.24.0 -n kong --create-namespace -f kong/kong-values.yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

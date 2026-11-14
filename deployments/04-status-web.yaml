@@ -4,7 +4,7 @@ metadata:
   name: status-web
   namespace: public-demo
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: status-web
@@ -13,6 +13,16 @@ spec:
       labels:
         app: status-web
     spec:
+      # Two replicas on two different Pis, so a drain or a reboot (kured)
+      # always leaves one serving. The PDB in 13-disruption-budgets.yaml
+      # makes the drain wait for that.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: status-web
       imagePullSecrets:
       - name: zot-registry
       containers:

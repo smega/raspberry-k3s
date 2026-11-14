@@ -16,3 +16,4 @@ resources:
   - 10-dashboard.yaml
   - 11-status-slo-alerts.yaml
   - 12-cert-expiry.yaml
+  - 13-disruption-budgets.yaml

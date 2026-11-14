@@ -45,21 +45,24 @@ spec:
   groups:
     - name: status-slo.recording
       interval: 1m
+      # status-api runs 2 replicas and both export the same values;
+      # averaging away instance/pod leaves one series per service (and a
+      # rollout no longer starts a new one).
       rules:
         - record: status:error_ratio:avg5m
-          expr: 1 - avg_over_time(status_service_up[5m])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[5m]))
         - record: status:error_ratio:avg30m
-          expr: 1 - avg_over_time(status_service_up[30m])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[30m]))
         - record: status:error_ratio:avg1h
-          expr: 1 - avg_over_time(status_service_up[1h])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[1h]))
         - record: status:error_ratio:avg2h
-          expr: 1 - avg_over_time(status_service_up[2h])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[2h]))
         - record: status:error_ratio:avg6h
-          expr: 1 - avg_over_time(status_service_up[6h])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[6h]))
         - record: status:error_ratio:avg1d
-          expr: 1 - avg_over_time(status_service_up[1d])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[1d]))
         - record: status:error_ratio:avg3d
-          expr: 1 - avg_over_time(status_service_up[3d])
+          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[3d]))
 
     - name: status-slo.alerts
       rules:
@@ -96,7 +99,7 @@ spec:
         # If the checker stops, status_service_up freezes at its last value
         # and the burn-rate alerts go blind - so watch the watcher too.
         - alert: StatusCheckerStale
-          expr: time() - status_data_generated_timestamp_seconds > 15 * 60
+          expr: time() - max without (instance, pod) (status_data_generated_timestamp_seconds) > 15 * 60
           for: 5m
           labels:
             severity: critical

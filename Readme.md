@@ -46,8 +46,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `monitoring/` -- kube-prometheus-stack and the blackbox exporter as Flux
   HelmReleases, their values files, and Prometheus's storage (a local PV on
   a USB stick in the control-plane Pi).
-- `kong/` -- Helm values for installing Kong as the cluster's Gateway API
-  implementation.
+- `kong/` -- Kong (the cluster's Gateway API implementation) as a Flux
+  HelmRelease and its values: 2 gateway and 2 controller replicas on
+  different Pis.
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,
   the apps above, the Gateway/HTTPRoutes, and the readonly dashboard),
   applied roughly in filename order.
@@ -71,6 +72,7 @@ this repo: a commit is a deploy, nothing gets `kubectl apply`'d by hand.
 clusters/home/
   flux-system/   Flux itself (pinned install.yaml) + "follow this repo"
   monitoring.yaml  -> ./monitoring          (HelmReleases, PV)
+  kong.yaml        -> ./kong                (Kong HelmRelease)
   apps.yaml        -> ./deployments         (after monitoring)
                     -> ./pi-temp-led/deployments
   private.yaml     -> a private repo        (probes with private hostnames)
@@ -84,8 +86,13 @@ Grafana admin, the private repo's deploy key, the ntfy URL for Flux).
 The status ConfigMap is seed-only (`kustomize.toolkit.fluxcd.io/ssa:
 IfNotPresent`): the checker owns its data, Flux only creates it if missing.
 
-To run your own copy without Flux: install the charts in `monitoring/`
-with helm (same values files), then `kubectl apply -k deployments/`.
+Everything public-facing runs at least 2 replicas spread over two Pis, with
+a PodDisruptionBudget (`deployments/13-disruption-budgets.yaml`), so a node
+drain or reboot never takes a site down. The exception is the dashboard
+backend, which keeps its metrics history in memory.
+
+To run your own copy without Flux: install the charts in `monitoring/` and
+`kong/` with helm (same values files), then `kubectl apply -k deployments/`.
 
 Notes for your own copy:
 - `11-status-slo-alerts.yaml` and `12-cert-expiry.yaml` need
@@ -95,7 +102,7 @@ Notes for your own copy:
   multi-window, multi-burn-rate rules, on the checker going stale, and on TLS
   certificates close to expiry.
 - `07-gateway.yaml` uses `gatewayClassName: kong` (the Helm chart in
-  `kong/kong-values.yml`) and lives in the `kong` namespace the Kong release
+  `kong/kong-values.yaml`) and lives in the `kong` namespace the Kong release
   creates. Change the class if you run another Gateway API implementation.
 - The dashboard needs a `dashboard-secrets` Secret (`mongo_uri`,
   `jwt_secret`), created separately.

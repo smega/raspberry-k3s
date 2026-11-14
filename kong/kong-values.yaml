@@ -1,0 +1,77 @@
+# Kong (chart kong/ingress), the cluster's only way in: the VPS nginx sends
+# every public site to port 80 on any of the 4 nodes (k3s_cluster upstream),
+# and from there it goes to the kong-gateway pods.
+#
+# Installed by hand in 2026-04 with these values; Flux took it over on
+# 2026-11-14 (kong.yaml). The only changes then: 2 replicas, a PDB and a
+# spread for both the gateway and the controller, so a drain or a kured
+# reboot never takes the last one away.
+controller:
+  ingressController:
+    enabled: true
+  # Two controllers with leader election: a new gateway pod starts empty
+  # and needs a controller to push the routes to it (that was the 404
+  # after the master reboot on 2026-11-14).
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/instance: kong
+          app.kubernetes.io/name: controller
+gateway:
+  enabled: true
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/instance: kong
+          app.kubernetes.io/name: gateway
+  admin:
+    enabled: true
+    type: ClusterIP
+    http:
+      enabled: false
+      containerPort: 8001
+      servicePort: 8001
+    tls:
+      enabled: true
+      containerPort: 8444
+      servicePort: 8444
+  env:
+    database: "off"
+  manager:
+    enabled: false
+  portal:
+    enabled: false
+  portalapi:
+    enabled: false
+  proxy:
+    enabled: true
+    type: LoadBalancer
+    http:
+      enabled: true
+      containerPort: 8000
+      servicePort: 80
+    tls:
+      enabled: false
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+ingressController:
+  installCRDs: false

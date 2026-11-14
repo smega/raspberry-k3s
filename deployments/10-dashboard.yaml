@@ -17,6 +17,9 @@ data:
     kube:
       kubeconfig: ""
 ---
+# Stays at 1 replica: the metrics history (kube_metrics_history.go) lives in
+# the pod's memory, so two replicas would each draw a different chart. Move
+# it to Prometheus first, then scale.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -86,7 +89,7 @@ metadata:
   name: dashboard-web
   namespace: public-dashboard
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: dashboard-web
@@ -95,6 +98,15 @@ spec:
       labels:
         app: dashboard-web
     spec:
+      # Two replicas on two different Pis, so a drain or a reboot (kured)
+      # always leaves one serving.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: dashboard-web
       imagePullSecrets:
         - name: zot-registry
       containers:

@@ -1,0 +1,46 @@
+# kubectl drain (node-os-upgrade.sh, kured) evicts pods through these:
+# with 2 replicas spread over two Pis, at most one goes at a time, so the
+# public sites keep answering while a node is down.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: status-api
+  namespace: public-demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: status-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: status-web
+  namespace: public-demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: status-web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: whoami
+  namespace: public-demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: whoami
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-web
+  namespace: public-dashboard
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dashboard-web
