@@ -94,8 +94,7 @@ IfNotPresent`): the checker owns its data, Flux only creates it if missing.
 
 Everything public-facing runs at least 2 replicas spread over two Pis, with
 a PodDisruptionBudget (`deployments/13-disruption-budgets.yaml`), so a node
-drain or reboot never takes a site down. The exception is the dashboard
-backend, which keeps its metrics history in memory.
+drain or reboot never takes a site down.
 
 To run your own copy without Flux: install the charts in `monitoring/` and
 `kong/` with helm (same values files), then `kubectl apply -k deployments/`.

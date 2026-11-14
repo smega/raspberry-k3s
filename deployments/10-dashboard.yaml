@@ -16,17 +16,17 @@ data:
       bcrypt_cost: 12
     kube:
       kubeconfig: ""
+    # Overview sparklines (query_range), see kube_metrics_history.go.
+    prometheus:
+      url: "http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090"
 ---
-# Stays at 1 replica: the metrics history (kube_metrics_history.go) lives in
-# the pod's memory, so two replicas would each draw a different chart. Move
-# it to Prometheus first, then scale.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dashboard-backend
   namespace: public-dashboard
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: dashboard-backend
@@ -35,6 +35,16 @@ spec:
       labels:
         app: dashboard-backend
     spec:
+      # Two replicas on two different Pis, so a drain or a reboot (kured)
+      # always leaves one serving. Safe since the sparkline history moved
+      # from pod memory to Prometheus.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: dashboard-backend
       serviceAccountName: public-dashboard-sa
       imagePullSecrets:
         - name: zot-registry
@@ -59,6 +69,13 @@ spec:
             - name: config
               mountPath: /app/config.yml
               subPath: config.yml
+          # Keep serving for 10s after SIGTERM: Kong only drops this pod
+          # from its upstream once the controller has seen the endpoint go,
+          # and until then it still sends requests here.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
           resources:
             requests:
               cpu: 30m

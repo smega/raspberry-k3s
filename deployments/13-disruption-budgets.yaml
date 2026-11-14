@@ -44,3 +44,14 @@ spec:
   selector:
     matchLabels:
       app: dashboard-web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-backend
+  namespace: public-dashboard
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dashboard-backend
