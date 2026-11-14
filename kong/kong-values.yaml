@@ -3,9 +3,9 @@
 # and from there it goes to the kong-gateway pods.
 #
 # Installed by hand in 2026-04 with these values; Flux took it over on
-# 2026-11-14 (kong.yaml). The only changes then: 2 replicas, a PDB and a
-# spread for both the gateway and the controller, so a drain or a kured
-# reboot never takes the last one away.
+# 2026-11-14 (kong.yaml). Changes since: 2 controllers with a PDB and a
+# spread, and the gateway as a DaemonSet with externalTrafficPolicy: Local
+# (see below), so no drain, reboot or crash takes the way in away.
 controller:
   ingressController:
     enabled: true
@@ -26,18 +26,15 @@ controller:
           app.kubernetes.io/name: controller
 gateway:
   enabled: true
-  replicaCount: 2
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 1
-  topologySpreadConstraints:
-    - maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: DoNotSchedule
-      labelSelector:
-        matchLabels:
-          app.kubernetes.io/instance: kong
-          app.kubernetes.io/name: gateway
+  # One gateway on every node, and each node's port 80 only goes to its own
+  # (externalTrafficPolicy: Local below). With a Deployment and "Cluster",
+  # the node the VPS connected to could forward to a gateway on a node that
+  # had just died, and that request hung until k8s noticed (~60s; node-crash
+  # game day 2026-11-14). Now a dead node is simply a dead upstream for the
+  # VPS nginx, which moves on after 3s. Drains leave DaemonSet pods alone,
+  # so a drained node keeps serving until it actually reboots.
+  deployment:
+    daemonset: true
   admin:
     enabled: true
     type: ClusterIP
