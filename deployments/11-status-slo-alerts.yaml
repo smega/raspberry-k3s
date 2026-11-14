@@ -29,6 +29,10 @@ spec:
   endpoints:
     - port: metrics
       interval: 30s
+      # The metrics carry the checked service's name in `service`; without
+      # this Prometheus overwrites it with the Kubernetes Service
+      # ("status-api") and the original ends up in exported_service.
+      honorLabels: true
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

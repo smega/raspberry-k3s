@@ -155,10 +155,24 @@ def uptime_percent(history):
     return round(up / len(history) * 100, 2)
 
 
+class CheckerOffline(Exception):
+    """Every target failed before getting any HTTP response."""
+
+
 def build_payload(existing, check=check_one):
+    results = [check(name, url) for name, url in load_targets().items()]
+    # The targets are independent sites on different hosts (the cluster, the
+    # VPS, Cloudflare). If none of them even answered, the likely cause is
+    # this pod's own network (e.g. its node restarting k3s, which resets
+    # iptables), not eight simultaneous outages. Recording that would burn
+    # every service's error budget for nothing, so the run is skipped.
+    # Seen twice during the 2026-11-14 k3s upgrade.
+    if results and all(not r["ok"] and r["statusCode"] is None for r in results):
+        raise CheckerOffline(", ".join(f"{r['name']}: {r.get('error')}" for r in results))
+
     services = []
-    for name, url in load_targets().items():
-        result = check(name, url)
+    for result in results:
+        name = result["name"]
         prev = existing.get(name, {})
         history = prev.get("history", [])
         entry = {"t": result["lastCheckedAt"], "ok": result["ok"]}
@@ -187,7 +201,13 @@ def main():
     v1 = client.CoreV1Api()
 
     existing = load_existing(v1)
-    payload = build_payload(existing)
+    try:
+        payload = build_payload(existing)
+    except CheckerOffline as e:
+        # Not patching leaves generatedAt as it was, so if this keeps
+        # happening StatusCheckerStale fires instead of fake outages.
+        print(f"no target answered at all, assuming this pod's network is down; run not recorded ({e})")
+        return
 
     body = {"data": {"status-data.json": json.dumps(payload, indent=2)}}
     v1.patch_namespaced_config_map(name=CONFIGMAP_NAME, namespace=NAMESPACE, body=body)

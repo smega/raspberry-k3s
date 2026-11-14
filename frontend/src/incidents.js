@@ -4,6 +4,16 @@
 // impact: 'outage' (visitors saw it) or 'none' (found before it hurt anyone).
 export const INCIDENTS = [
   {
+    date: '2026-11-14',
+    title: 'k3s upgrade 1.30 to 1.37: a short outage and an alert storm',
+    impact: 'outage',
+    duration: 'about 2 minutes, 2 sites',
+    what:
+      'I upgraded the cluster seven Kubernetes versions in a row, one node at a time. While the control plane restarted, the two sites served from the cluster returned 502 for about two minutes. Twice the status checker\'s own node restarted under it, and it recorded every site as down, including the ones on other servers. Those fake failures set off the SLO alerts for all eight services at once. That notification was too big for ntfy, which rejected it, and the rejection crashed Alertmanager through a bug in version 0.27. It restarted for about 40 minutes, re-sending the same alerts each time.',
+    fix: 'Silenced the false alerts, upgraded Alertmanager to 0.28.1 (which has the fix), and capped how many alerts go into one notification.',
+    lesson: 'The checker now skips a run in which no site answered at all, because that is its own network, not eight outages. Upgrades now silence only the alerts a rolling restart is expected to cause; the SLO alerts stay live.',
+  },
+  {
     date: '2026-11-13',
     title: 'Mail server certificate would have expired in December',
     impact: 'none',
