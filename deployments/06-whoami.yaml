@@ -52,6 +52,10 @@ metadata:
     # A pod that's gone (drain, reboot) doesn't answer at all; give up on
     # it after 2s and let Kong retry the other replica (default: 60s).
     konghq.com/connect-timeout: "2000"
+    # Same for a kept-alive connection to a pod that died under it (node
+    # crash): no reply, no reset, so only a read timeout ends it. Answers
+    # here are small and fast; after 5s Kong retries the other replica.
+    konghq.com/read-timeout: "5000"
 spec:
   selector:
     app: whoami
