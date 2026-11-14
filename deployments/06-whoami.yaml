@@ -28,6 +28,13 @@ spec:
           image: traefik/whoami:v1.11.0
           ports:
             - containerPort: 80
+          # Keep serving for 10s after SIGTERM: Kong only drops this pod
+          # from its upstream once the controller has seen the endpoint go,
+          # and until then it still sends requests here.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
           resources:
             requests:
               cpu: 20m
@@ -41,6 +48,10 @@ kind: Service
 metadata:
   name: whoami
   namespace: public-demo
+  annotations:
+    # A pod that's gone (drain, reboot) doesn't answer at all; give up on
+    # it after 2s and let Kong retry the other replica (default: 60s).
+    konghq.com/connect-timeout: "2000"
 spec:
   selector:
     app: whoami
