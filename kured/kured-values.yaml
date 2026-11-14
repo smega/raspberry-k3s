@@ -4,10 +4,11 @@
 # hook (infra repo: os-upgrade/setup-unattended-upgrades.sh), since
 # Raspbian's kernel packages don't set it themselves.
 configuration:
-  # Nights only, Monday to Thursday: unattended-upgrades runs 01:00-02:00,
+  # Nights only, Mon/Tue/Thu (Wednesday belongs to the k3s upgrades in
+  # system-upgrade/plans.yaml): unattended-upgrades runs 01:00-02:00,
   # so a new kernel gets rebooted into the same night, and a reboot that
   # goes wrong is never left over a weekend.
-  rebootDays: [mo, tu, we, th]
+  rebootDays: [mo, tu, th]
   startTime: "03:00"
   endTime: "06:00"
   timeZone: Europe/London

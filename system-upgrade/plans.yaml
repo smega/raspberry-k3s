@@ -1,0 +1,62 @@
+# k3s patch upgrades by system-upgrade-controller: follows the v1.37
+# channel, so 1.37.x -> 1.37.y happens on its own and a new minor (1.38)
+# is still a deliberate change here (bump the channel, read the notes).
+#
+# Wednesday 02:30-06:00 only. kured reboots Mon/Tue/Thu, so the two never
+# drain nodes at the same time. The window has to fit the whole run:
+# outside it no new Job starts, and an agent left over would wait a week.
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-server
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  # Cordon only: the single server can't be drained onto anything (and
+  # the sites live on the workers too, 2 replicas each).
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: In
+        values: ["true"]
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade
+  channel: https://update.k3s.io/v1-release/channels/v1.37
+  window:
+    days: [we]
+    startTime: "02:30"
+    endTime: "06:00"
+    timeZone: Europe/London
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-agent
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  # Drained like a kured reboot: the PDBs keep one replica of every site.
+  drain:
+    force: true
+    deleteEmptydirData: true
+    skipWaitForDeleteTimeout: 60
+    timeout: 900s
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+  # Agents wait until the server is on the new version.
+  prepare:
+    image: rancher/k3s-upgrade
+    args: ["prepare", "k3s-server"]
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade
+  channel: https://update.k3s.io/v1-release/channels/v1.37
+  window:
+    days: [we]
+    startTime: "02:30"
+    endTime: "06:00"
+    timeZone: Europe/London

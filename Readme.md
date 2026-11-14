@@ -50,7 +50,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   HelmRelease and its values: 2 gateway and 2 controller replicas on
   different Pis.
 - `kured/` -- automatic, one-at-a-time node reboots after OS updates
-  (Mon-Thu 03:00-06:00, never while an alert is firing).
+  (Mon/Tue/Thu 03:00-06:00, never while an alert is firing).
+- `system-upgrade/` -- system-upgrade-controller and the Plans that keep
+  k3s on the latest 1.37.x (Wednesdays 02:30-06:00).
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,
   the apps above, the Gateway/HTTPRoutes, and the readonly dashboard),
   applied roughly in filename order.
@@ -76,6 +78,7 @@ clusters/home/
   monitoring.yaml  -> ./monitoring          (HelmReleases, PV)
   kong.yaml        -> ./kong                (Kong HelmRelease)
   kured.yaml       -> ./kured               (automatic node reboots)
+  system-upgrade.yaml -> ./system-upgrade   (k3s patch upgrades)
   apps.yaml        -> ./deployments         (after monitoring)
                     -> ./pi-temp-led/deployments
   private.yaml     -> a private repo        (probes with private hostnames)
