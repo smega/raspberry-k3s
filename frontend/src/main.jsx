@@ -1,6 +1,5 @@
 import { h, render } from 'preact'
 import { useEffect, useMemo, useState } from 'preact/hooks'
-import { INCIDENTS } from './incidents.js'
 
 // Status palette (fixed, never themed) - good/critical only, this page has
 // no intermediate "degraded" state.
@@ -606,17 +605,23 @@ function IncidentEntry({ i }) {
   )
 }
 
-function IncidentLog() {
+// Loaded only when the tab is opened: the log only grows, and the
+// Services view shouldn't download every write-up to show the status.
+function IncidentsView() {
+  const [incidents, setIncidents] = useState(null)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    import('./incidents.js').then((m) => setIncidents(m.INCIDENTS), () => setError(true))
+  }, [])
   return (
-    <section style={{ marginTop: '40px' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 6px', color: INK_PRIMARY }}>Incident log</h2>
-      <p style={{ margin: '0 0 8px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6, maxWidth: '620px' }}>
+    <>
+      <PageIntro title="Incident log">
         What broke, what fixed it and what changed afterwards, including the problems nobody outside noticed.
-      </p>
-      {INCIDENTS.map((i) => (
-        <IncidentEntry key={`${i.date}-${i.title}`} i={i} />
-      ))}
-    </section>
+      </PageIntro>
+      {error && <p style={{ color: CRITICAL, fontSize: '14px' }}>Could not load the incident log.</p>}
+      {!incidents && !error && <p style={{ color: INK_MUTED, fontSize: '14px' }}>Loading...</p>}
+      {incidents && incidents.map((i) => <IncidentEntry key={`${i.date}-${i.title}`} i={i} />)}
+    </>
   )
 }
 
@@ -918,15 +923,17 @@ function Footer() {
   )
 }
 
-// Two views behind a hash ("#cluster"), so each has its own shareable URL
+// Views behind a hash ("#cluster"), so each has its own shareable URL
 // without needing a router or server-side routes.
 const TABS = [
   { id: 'services', label: 'Services', hash: '' },
   { id: 'cluster', label: 'Cluster', hash: '#cluster' },
+  { id: 'incidents', label: 'Incidents', hash: '#incidents' },
 ]
 
 function tabFromHash() {
-  return window.location.hash === '#cluster' ? 'cluster' : 'services'
+  const t = TABS.find((t) => t.hash && t.hash === window.location.hash)
+  return t ? t.id : 'services'
 }
 
 function useTab() {
@@ -1104,7 +1111,12 @@ function ServicesView({ apiBase }) {
         </>
       )}
 
-      <IncidentLog />
+      <p style={{ marginTop: '40px', fontSize: '14px', color: INK_SECONDARY }}>
+        What broke and what changed afterwards:{' '}
+        <a href="#incidents" style={{ color: INK_PRIMARY, fontWeight: 500 }}>
+          incident log
+        </a>
+      </p>
     </>
   )
 }
@@ -1127,7 +1139,13 @@ function App() {
     <>
       <SiteHeader tab={tab} />
       <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 20px 60px' }}>
-        {tab === 'cluster' ? <ClusterView apiBase={apiBase} /> : <ServicesView apiBase={apiBase} />}
+        {tab === 'cluster' ? (
+          <ClusterView apiBase={apiBase} />
+        ) : tab === 'incidents' ? (
+          <IncidentsView />
+        ) : (
+          <ServicesView apiBase={apiBase} />
+        )}
         <AuthorSection />
       </main>
       <Footer />
