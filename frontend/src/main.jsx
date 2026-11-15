@@ -322,6 +322,15 @@ function formatSince(unixSeconds) {
   return years >= 1 ? `${month} (${Math.floor(years)} year${years >= 2 ? 's' : ''})` : month
 }
 
+// The most recently booted Pi. Reboots are automatic (kured, one node at a
+// time after OS updates), so this is the last rolling-reboot step.
+function lastReboot(nodes) {
+  const up = nodes.filter((n) => n.reachable && n.uptimeSeconds != null)
+  if (!up.length) return null
+  const n = up.reduce((a, b) => (b.uptimeSeconds < a.uptimeSeconds ? b : a))
+  return `${formatUptime(n.uptimeSeconds)} ago (${n.name.split(' - ')[0]})`
+}
+
 function FactList({ title, rows }) {
   return (
     <div style={{ flex: '1 1 260px', minWidth: 0 }}>
@@ -359,6 +368,7 @@ function ClusterFacts({ data }) {
     ['Runtime', c.runtime],
     ['Traffic', 'Kong (Gateway API), Tailscale to the VPS'],
     ['Monitoring', 'kube-prometheus-stack, blackbox exporter'],
+    ['Patching', 'unattended-upgrades, kured reboots one Pi at a time'],
   ]
   const now = [
     ['Nodes', `${ready} of ${data.nodes.length} ready`],
@@ -366,6 +376,7 @@ function ClusterFacts({ data }) {
     ['Memory', reachable.length ? `${formatGiB(sum('memTotalBytes'))} GiB usable` : null],
     ['Pods', c.podsRunning != null ? `${c.podsRunning} running` : null],
     ['Workloads', c.workloads != null && c.namespaces != null ? `${c.workloads} in ${c.namespaces} namespaces` : null],
+    ['Last reboot', lastReboot(data.nodes)],
     ['Running since', formatSince(c.createdAt)],
   ]
 
