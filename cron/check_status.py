@@ -28,6 +28,39 @@ DEFAULT_TARGETS = {
 }
 
 
+# The watchers outside the cluster (both on the manage VPS) report to RunGuard;
+# their public RunGuard pages (https://runguard.smega.eu/p/<token>) come from
+# the hand-made Secret runguard-public-jobs. Only status and times go into the
+# payload, never the token.
+WATCHERS = {
+    "externalProbe": "RUNGUARD_EXTERNAL_PROBE_URL",  # outside-in probe, every 2 min
+    "restoreTest": "RUNGUARD_RESTORE_TEST_URL",  # backup restore test, weekly
+}
+
+
+def fetch_watchers():
+    out = {}
+    for key, env in WATCHERS.items():
+        page = os.getenv(env, "").strip().rstrip("/")
+        if not page:
+            continue
+        base, token = page.rsplit("/p/", 1)
+        try:
+            resp = requests.get(f"{base}/api/public/job/{token}", timeout=CHECK_TIMEOUT_SECONDS)
+            resp.raise_for_status()
+            job = resp.json()
+        except (requests.RequestException, ValueError) as e:
+            print(f"watcher {key}: {type(e).__name__}", flush=True)
+            continue
+        last = job.get("last_run") or {}
+        out[key] = {
+            "onTime": job.get("status") == "ok",
+            "lastStatus": last.get("status"),
+            "lastAt": last.get("at"),
+        }
+    return out
+
+
 def load_targets():
     raw = os.getenv("STATUS_TARGETS_JSON")
     if not raw:
@@ -193,6 +226,7 @@ def build_payload(existing, check=check_one):
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "services": services,
+        "watchers": fetch_watchers(),
     }
 
 

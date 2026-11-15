@@ -25,6 +25,15 @@ spec:
               value: public-demo
             - name: STATUS_CONFIGMAP_NAME
               value: status-data
+            # Public RunGuard pages of the VPS-side watchers; Secret made by
+            # hand (not in this public repo), optional so the checker still
+            # runs without it.
+            - name: RUNGUARD_EXTERNAL_PROBE_URL
+              valueFrom:
+                secretKeyRef: {name: runguard-public-jobs, key: external-probe, optional: true}
+            - name: RUNGUARD_RESTORE_TEST_URL
+              valueFrom:
+                secretKeyRef: {name: runguard-public-jobs, key: restore-test, optional: true}
             resources:
               requests:
                 cpu: 20m

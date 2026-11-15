@@ -636,6 +636,40 @@ function IncidentsView() {
   )
 }
 
+function formatAgo(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 90) return 'just now'
+  if (s < 5400) return `${Math.round(s / 60)} min ago`
+  if (s < 129600) return `${Math.round(s / 3600)} h ago`
+  return `${Math.round(s / 86400)} days ago`
+}
+
+// The watchers outside the cluster, as reported to RunGuard (see
+// cron/check_status.py). A run that is overdue counts as a problem too.
+function Watcher({ w, label, ok, failed }) {
+  if (!w || !w.lastAt) return null
+  const good = w.onTime && w.lastStatus === 'ok'
+  return (
+    <span>
+      {label}:{' '}
+      <span style={{ color: good ? GOOD : CRITICAL, fontWeight: 500 }}>
+        {good ? ok : w.lastStatus === 'ok' ? 'overdue' : failed}
+      </span>
+      , {formatAgo(w.lastAt)}
+    </span>
+  )
+}
+
+function WatchersLine({ watchers }) {
+  if (!watchers || (!watchers.externalProbe && !watchers.restoreTest)) return null
+  return (
+    <div style={{ fontSize: '12px', color: INK_MUTED, display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: '6px' }}>
+      <Watcher w={watchers.externalProbe} label="Outside-in check from the VPS" ok="passing" failed="failing" />
+      <Watcher w={watchers.restoreTest} label="Backup restore test" ok="passed" failed="failed" />
+    </div>
+  )
+}
+
 // Badge slugs must match backend/badge.go's slugify().
 function slugify(name) {
   return name
@@ -1119,6 +1153,7 @@ function ServicesView({ apiBase }) {
               How
             </a>
           </div>
+          <WatchersLine watchers={data.watchers} />
         </>
       )}
 
