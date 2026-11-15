@@ -62,6 +62,13 @@ gateway:
       enabled: true
       containerPort: 8000
       servicePort: 80
+      # Fixed: the VPS nginx connects here, not to :80. Port 80 goes through
+      # k3s's svclb pod, and kube-proxy treats traffic from a pod as
+      # in-cluster and spreads it over every node's gateway despite
+      # externalTrafficPolicy Local, including a node that just died. Straight
+      # to the NodePort, the VPS is an outside client and each node only
+      # uses its own gateway (node-crash game day, 2026-11-15).
+      nodePort: 30378
     tls:
       enabled: false
   resources:
