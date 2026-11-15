@@ -24,10 +24,10 @@ spec:
             matchLabels:
               app: status-web
       imagePullSecrets:
-      - name: zot-registry
+        - name: zot-registry
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/status-web:latest # {"$imagepolicy": "flux-system:status-web"}
+          image: registry.smdoes.eu/raspberry/status-web:main-1794722834-354e1c7 # {"$imagepolicy": "flux-system:status-web"}
           imagePullPolicy: Always
           ports:
             - containerPort: 80

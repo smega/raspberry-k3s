@@ -17,18 +17,18 @@ spec:
           serviceAccountName: status-checker-sa
           restartPolicy: OnFailure
           containers:
-            - name: checker
-              image: registry.smdoes.eu/raspberry/status-checker:latest # {"$imagepolicy": "flux-system:status-checker"}
-              imagePullPolicy: Always
-              env:
-                - name: STATUS_NAMESPACE
-                  value: public-demo
-                - name: STATUS_CONFIGMAP_NAME
-                  value: status-data
-              resources:
-                requests:
-                  cpu: 20m
-                  memory: 48Mi
-                limits:
-                  cpu: 100m
-                  memory: 96Mi
+          - name: checker
+            image: registry.smdoes.eu/raspberry/status-checker:main-1794722833-354e1c7 # {"$imagepolicy": "flux-system:status-checker"}
+            imagePullPolicy: Always
+            env:
+            - name: STATUS_NAMESPACE
+              value: public-demo
+            - name: STATUS_CONFIGMAP_NAME
+              value: status-data
+            resources:
+              requests:
+                cpu: 20m
+                memory: 48Mi
+              limits:
+                cpu: 100m
+                memory: 96Mi
