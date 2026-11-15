@@ -14,6 +14,9 @@ ENV VITE_BUILD_SHA=$VITE_BUILD_SHA VITE_BUILD_TIME=$VITE_BUILD_TIME VITE_BUILD_M
 RUN npm run build
 
 FROM nginx:1.30-alpine
+# Pick up Alpine fixes that landed after the nginx image was built
+# (Trivy, 2026-11-15: libxslt).
+RUN apk upgrade --no-cache
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

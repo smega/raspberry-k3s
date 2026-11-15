@@ -1,6 +1,8 @@
 # Python 3.12: rpi-lgpio needs lgpio, which has no 3.13 wheel and does
-# not build from source here (CI, 2026-11-15).
-FROM python:3.12-slim-bookworm
+# not build from source here (CI, 2026-11-15). Trixie rather than
+# bookworm: bookworm's unfixed CVEs (zlib, util-linux) were all of this
+# image's Trivy findings.
+FROM python:3.12-slim-trixie
 
 WORKDIR /app
 COPY app/requirements.txt ./
