@@ -110,9 +110,14 @@ jobs:
 
       # Signed by this workflow file on main, whichever repo called it; the
       # cluster checks for exactly this identity (kyverno/).
+      #
+      # Legacy signature format (a .sig tag), not cosign v3's default
+      # bundle-as-OCI-referrer: the cluster's policy-controller (0.13) only
+      # finds the former ("no signatures found" otherwise).
       - name: Sign and verify
         run: |
-          cosign sign --yes "${REPO}@${{ steps.push.outputs.digest }}"
+          cosign sign --yes --new-bundle-format=false --use-signing-config=false \
+            "${REPO}@${{ steps.push.outputs.digest }}"
           cosign verify "${REPO}@${{ steps.push.outputs.digest }}" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             --certificate-identity https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main \
