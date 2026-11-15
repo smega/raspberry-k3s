@@ -23,6 +23,11 @@ on:
         description: Docker build context (directory with the Dockerfile)
         required: true
         type: string
+      runner:
+        description: Runner label; arm64 hosted runners are free for public repos only
+        required: false
+        type: string
+        default: ubuntu-24.04-arm
       build-status-web-args:
         description: Bake the commit into the page (status-web's "Last deploy" line)
         required: false
@@ -45,9 +50,13 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ inputs.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Only on an x64 runner (a private repo's): arm64 builds via QEMU.
+      - if: runner.arch != 'ARM64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Tag
         id: tag
