@@ -4,6 +4,36 @@
 // impact: 'outage' (visitors saw it) or 'none' (found before it hurt anyone).
 export const INCIDENTS = [
   {
+    date: '2026-11-15',
+    title: 'Game day: seven tries to survive a node that dies',
+    impact: 'outage',
+    duration: 'a few failed requests per run; the worst run, about 45 seconds of 502s',
+    what:
+      'I made one Pi fail on purpose: stop k3s and kill every container on it, no warning, and probe every site once a second from the VPS while it stays dead for three minutes. Every run failed a little differently, each time one layer further out. First, the other nodes kept forwarding part of the traffic to the dead node\'s Kong gateway until Kubernetes noticed, about a minute later. Then Kong, and after that the VPS\'s nginx, waited 60 seconds on kept-alive connections into the dead node, which never answer and never reset. The fifth run was the worst, and that one was my fault: to cut the waiting I had shortened nginx\'s connect timeout to one second, so it marked all four nodes as failed within seconds and returned 502 to everyone for about 45 seconds.',
+    fix: 'A packet capture on a healthy node finally showed the root cause: the VPS\'s connections arrived and were never answered. Port 80 on each node goes through a small k3s load-balancer pod, and Kubernetes treats traffic coming from a pod as internal and spreads it across every node\'s gateway, the dead one included, even with "local traffic only" set. The VPS now connects to Kong\'s node port directly, where each node only uses its own gateway. With that, plus one Kong gateway per node, shorter timeouts inside Kong and no connection reuse from the VPS, the seventh run passed: three minutes with a dead node, zero failed requests.',
+    lesson: 'A setting that says "local only" may not cover the path your traffic actually takes; it took a packet capture, not a config read, to see it. And a fix for slow failover can turn into an outage of its own: give up too quickly and every node looks dead.',
+  },
+  {
+    date: '2026-11-14',
+    title: 'My own change to the cluster\'s way in took every site down for 30 seconds',
+    impact: 'outage',
+    duration: 'about 32 seconds, all sites; then about 50 seconds of slow requests',
+    what:
+      'To fix the node-crash problem above, I changed Kong\'s gateway from two replicas to one on every node. Helm created the new set and removed the old one in the same step, before any new pod was ready, so for about 32 seconds there was no gateway at all and every site returned 502. The follow-up setting change made k3s restart its load-balancer pods on all four nodes within eight seconds, and requests stalled for another 50 seconds or so.',
+    fix: 'Nothing to roll back; both changes finished on their own and were what I wanted, just not how they rolled out.',
+    lesson: 'For anything on the way in, bring the new path up next to the old one first and only then remove the old one. Two steps that each look safe are not a plan if one of them replaces the thing that serves the traffic.',
+  },
+  {
+    date: '2026-11-14',
+    title: 'Upgrading one Pi took the sites down for 75 seconds',
+    impact: 'outage',
+    duration: 'about 75 seconds, all cluster sites',
+    what:
+      'While patching the control-plane Pi, I drained it first, which moves its pods to the other nodes. Every app ran as a single replica with nothing saying "keep one running", so while each pod restarted somewhere else there was nothing left to serve the sites. The VPS had a second weak spot: it sent all cluster traffic to that one Pi only.',
+    fix: 'Two replicas of everything public, on different Pis, with a disruption budget so a drain always leaves one running; a 10-second grace period so a pod keeps serving while Kong takes it out of rotation; and the VPS now sends traffic to all four Pis. The next drain of the same node lost no requests.',
+    lesson: 'Automatic reboots (kured) were the next step, so this had to be fixed first: otherwise every night\'s patching would have been a small outage.',
+  },
+  {
     date: '2026-11-14',
     title: 'k3s upgrade 1.30 to 1.37: a short outage and an alert storm',
     impact: 'outage',
