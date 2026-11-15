@@ -132,7 +132,7 @@ spec:
         - name: zot-registry
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/dashboard-web:main-1794723354-880b0ff # {"$imagepolicy": "flux-system:dashboard-web"}
+          image: registry.smdoes.eu/raspberry/dashboard-web:main-1794724688-dc2bc0e # {"$imagepolicy": "flux-system:dashboard-web"}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
