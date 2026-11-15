@@ -51,7 +51,7 @@ spec:
       containers:
         - name: backend
           image: registry.smdoes.eu/raspberry/dashboard-backend:main-1794723346-880b0ff # {"$imagepolicy": "flux-system:dashboard-backend"}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           env:
@@ -133,7 +133,7 @@ spec:
       containers:
         - name: web
           image: registry.smdoes.eu/raspberry/dashboard-web:main-1794723354-880b0ff # {"$imagepolicy": "flux-system:dashboard-web"}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           # Keep serving for 10s after SIGTERM: Kong only drops this pod

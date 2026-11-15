@@ -28,7 +28,7 @@ spec:
       containers:
         - name: api
           image: registry.smdoes.eu/raspberry/status-api:main-1794722833-354e1c7 # {"$imagepolicy": "flux-system:status-api"}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           env:
             - name: STATUS_DATA_FILE
               value: /data/status-data.json

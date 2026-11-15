@@ -32,9 +32,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   On a separate, unrouted port (9100) it also exposes the checker's results
   as Prometheus metrics (`status_service_up`, latency, data age), which feed
   the SLO burn-rate alerts in `deployments/11-status-slo-alerts.yaml`.
-- `scripts/publish-status.sh` -- builds and pushes the status page images
-  (arm64); bakes the current commit into status-web for its "Last deploy"
-  line.
+- `.github/workflows/` -- CI: every push to main builds the images whose
+  directory changed (arm64, `main-<unix time>-<sha>` tags), signs them with
+  cosign and scans them with Trivy (see "CI/CD" below).
 - `cron/` -- a Python CronJob (`check_status.py`) that checks each configured
   service every 5 minutes, keeps a rolling 24h history per service, and
   patches the result into a ConfigMap.
@@ -56,6 +56,27 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `deployments/` -- the rest of the Kubernetes manifests (namespaces, RBAC,
   the apps above, the Gateway/HTTPRoutes, and the readonly dashboard),
   applied roughly in filename order.
+
+## CI/CD
+
+```
+git push main
+  -> GitHub Actions (images.yml -> build-image.yml, arm64 runner)
+       build, push registry.smdoes.eu/raspberry/<image>:main-<time>-<sha>
+       cosign sign (keyless, GitHub OIDC), Trivy -> Security tab
+  -> Flux image automation (image-automation/)
+       ImagePolicy picks the newest main-* tag
+       ImageUpdateAutomation commits it into the manifest ("Deploy new images")
+  -> Flux applies that commit like any other change
+```
+
+No `:latest` anywhere: a tag is never moved, so every pod runs exactly the
+build git names, and a rollback is a `git revert` of the "Deploy new
+images" commit. The manifests carry `# {"$imagepolicy": ...}` markers that
+tell Flux which line to update. smega/cluster-dashboard uses the same
+build workflow for its two images. Actions are pinned to commit SHAs;
+Renovate (`renovate.json`) proposes updates to them, to base images and to
+the Helm charts, never to the images Flux deploys.
 
 ## Readonly dashboard: what it can and can't see
 

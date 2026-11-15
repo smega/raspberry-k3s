@@ -28,7 +28,7 @@ spec:
       containers:
         - name: web
           image: registry.smdoes.eu/raspberry/status-web:main-1794722834-354e1c7 # {"$imagepolicy": "flux-system:status-web"}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           # Keep serving for 10s after SIGTERM: Kong only drops this pod

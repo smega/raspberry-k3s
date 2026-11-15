@@ -4,8 +4,8 @@
 #
 # Tag: main-<unix time>-<short sha>. The time makes tags sortable, so
 # Flux's ImagePolicy can pick the newest (clusters/home/image-automation);
-# the sha says which commit it is. :latest is still pushed for now, until
-# every manifest follows the tags.
+# the sha says which commit it is. No :latest: a tag is never moved, so
+# every pod runs exactly the build git says.
 #
 # Actions are pinned to commit SHAs (tag in the comment): a moved tag
 # can't swap the code that gets the registry password. Renovate bumps them.
@@ -75,9 +75,7 @@ jobs:
           platforms: linux/arm64
           push: true
           provenance: false
-          tags: |
-            ${{ env.REPO }}:${{ steps.tag.outputs.tag }}
-            ${{ env.REPO }}:latest
+          tags: ${{ env.REPO }}:${{ steps.tag.outputs.tag }}
           build-args: |
             ${{ inputs.build-status-web-args && format('VITE_BUILD_SHA={0}', github.sha) || '' }}
             ${{ inputs.build-status-web-args && format('VITE_BUILD_TIME={0}', steps.tag.outputs.time) || '' }}

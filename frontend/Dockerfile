@@ -6,7 +6,7 @@ COPY src ./src
 COPY public ./public
 RUN npm install
 
-# "Last deploy" line on the page; set by scripts/publish-status.sh.
+# "Last deploy" line on the page; set by CI (.github/workflows/build-image.yml).
 ARG VITE_BUILD_SHA=""
 ARG VITE_BUILD_TIME=""
 ARG VITE_BUILD_MESSAGE=""

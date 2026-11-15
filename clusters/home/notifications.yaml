@@ -31,5 +31,17 @@ spec:
     - kind: HelmRelease
       name: '*'
       namespace: monitoring
+    - kind: HelmRelease
+      name: '*'
+      namespace: kong
+    - kind: HelmRelease
+      name: '*'
+      namespace: kube-system
     - kind: HelmRepository
+      name: '*'
+    # CI -> deploy: a registry Flux can't read, or new tags it can't
+    # commit back to git (image-automation/).
+    - kind: ImageRepository
+      name: '*'
+    - kind: ImageUpdateAutomation
       name: '*'

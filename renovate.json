@@ -1,0 +1,22 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "timezone": "Europe/London",
+  "schedule": ["before 9am on monday"],
+  "minimumReleaseAge": "14 days",
+  "prConcurrentLimit": 5,
+  "flux": { "fileMatch": ["\\.ya?ml$"] },
+  "packageRules": [
+    {
+      "description": "Our own images are deployed by Flux image automation, not Renovate",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["registry.smdoes.eu/**"],
+      "enabled": false
+    },
+    {
+      "description": "k3s, Kong, kube-prometheus-stack, Flux itself: read the release notes, no automerge",
+      "matchPackageNames": ["rancher/**", "kong/**", "kube-prometheus-stack", "ingress", "fluxcd/**"],
+      "automerge": false
+    }
+  ]
+}

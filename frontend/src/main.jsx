@@ -687,7 +687,7 @@ function BadgesSection({ apiBase, services }) {
   )
 }
 
-// Baked in at image build time by scripts/publish-status.sh (Docker build
+// Baked in at image build time by CI, build-image.yml (Docker build
 // args -> VITE_* env), so the page can say which commit it is running.
 const BUILD = {
   sha: import.meta.env.VITE_BUILD_SHA,
