@@ -50,7 +50,7 @@ spec:
         - name: zot-registry
       containers:
         - name: backend
-          image: registry.smdoes.eu/raspberry/dashboard-backend:main-1794725251-1e703d7 # {"$imagepolicy": "flux-system:dashboard-backend"}
+          image: registry.smdoes.eu/raspberry/dashboard-backend:main-1794725977-1e703d7 # {"$imagepolicy": "flux-system:dashboard-backend"}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -132,7 +132,7 @@ spec:
         - name: zot-registry
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/dashboard-web:main-1794725253-1e703d7 # {"$imagepolicy": "flux-system:dashboard-web"}
+          image: registry.smdoes.eu/raspberry/dashboard-web:main-1794725978-1e703d7 # {"$imagepolicy": "flux-system:dashboard-web"}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
