@@ -24,10 +24,10 @@ spec:
             matchLabels:
               app: status-api
       imagePullSecrets:
-      - name: zot-registry
+        - name: zot-registry
       containers:
         - name: api
-          image: registry.smdoes.eu/raspberry/status-api:latest # {"$imagepolicy": "flux-system:status-api"}
+          image: registry.smdoes.eu/raspberry/status-api:main-1794722833-354e1c7 # {"$imagepolicy": "flux-system:status-api"}
           imagePullPolicy: Always
           env:
             - name: STATUS_DATA_FILE
