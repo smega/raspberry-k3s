@@ -118,7 +118,9 @@ jobs:
             --certificate-identity https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main \
             > /dev/null
 
-      # Full report (CRITICAL to LOW, unfixed too) for the Security tab.
+      # Full report (CRITICAL to LOW) for the Security tab, fixable ones
+      # only: unfixed distro CVEs (util-linux on Debian...) can't be acted
+      # on and only bury the ones that can.
       - name: Scan (report)
         if: always() && steps.push.outcome == 'success'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -129,6 +131,7 @@ jobs:
           image-ref: ${{ env.REPO }}@${{ steps.push.outputs.digest }}
           format: sarif
           output: trivy.sarif
+          ignore-unfixed: true
           exit-code: "0"
 
       - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

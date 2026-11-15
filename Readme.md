@@ -68,6 +68,8 @@ git push main
        ImagePolicy picks the newest main-* tag
        ImageUpdateAutomation commits it into the manifest ("Deploy new images")
   -> Flux applies that commit like any other change
+  -> policy-controller checks the signature when the pod is created
+       (image-policies/: signed by build-image.yml on main, or a warning)
 ```
 
 No `:latest` anywhere: a tag is never moved, so every pod runs exactly the
@@ -100,6 +102,9 @@ clusters/home/
   kong.yaml        -> ./kong                (Kong HelmRelease)
   kured.yaml       -> ./kured               (automatic node reboots)
   system-upgrade.yaml -> ./system-upgrade   (k3s patch upgrades)
+  image-automation.yaml -> ./image-automation (new image tags -> git)
+  policy-controller.yaml -> ./policy-controller, ./image-policies
+                                            (image signature checks)
   apps.yaml        -> ./deployments         (after monitoring)
                     -> ./pi-temp-led/deployments
   private.yaml     -> a private repo        (probes with private hostnames)

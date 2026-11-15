@@ -1,0 +1,39 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: sigstore
+  namespace: flux-system
+spec:
+  url: https://sigstore.github.io/helm-charts
+  interval: 12h
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cosign-system
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: policy-controller
+  namespace: cosign-system
+spec:
+  releaseName: policy-controller
+  interval: 1h
+  timeout: 10m
+  chart:
+    spec:
+      chart: policy-controller
+      version: 0.10.8
+      sourceRef:
+        kind: HelmRepository
+        name: sigstore
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  valuesFrom:
+    - kind: ConfigMap
+      name: policy-controller-values
+      valuesKey: values.yaml

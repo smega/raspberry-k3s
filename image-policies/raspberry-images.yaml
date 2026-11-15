@@ -1,0 +1,25 @@
+# Every registry.smdoes.eu/raspberry/** image in a watched namespace must be
+# signed by CI: cosign keyless, by the build-image.yml workflow of
+# smega/raspberry-k3s on main (cluster-dashboard calls that same workflow,
+# so its images carry the same identity). Anything else, a hand-pushed
+# image or a build from a branch, fails the check.
+#
+# mode: warn first (kubectl and the events show it, the pod still runs).
+# Switch to enforce once every image in these namespaces comes from CI
+# (devlog-web is still built by hand).
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: raspberry-images
+spec:
+  mode: warn
+  images:
+    - glob: "registry.smdoes.eu/raspberry/**"
+  authorities:
+    - keyless:
+        url: https://fulcio.sigstore.dev
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subject: https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main
+      ctlog:
+        url: https://rekor.sigstore.dev

@@ -1,0 +1,6 @@
+# ClusterImagePolicies, applied by Flux (clusters/home/policy-controller.yaml)
+# after the policy-controller (and its CRDs) are up.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - raspberry-images.yaml

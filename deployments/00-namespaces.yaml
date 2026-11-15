@@ -4,6 +4,8 @@ metadata:
   name: public-dashboard
   labels:
     expose-via-public-gateway: "true"
+    # Image signatures checked by the policy-controller (image-policies/).
+    policy.sigstore.dev/include: "true"
 ---
 apiVersion: v1
 kind: Namespace
@@ -11,3 +13,5 @@ metadata:
   name: public-demo
   labels:
     expose-via-public-gateway: "true"
+    # Image signatures checked by the policy-controller (image-policies/).
+    policy.sigstore.dev/include: "true"
