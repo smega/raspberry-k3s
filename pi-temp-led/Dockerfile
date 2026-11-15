@@ -1,4 +1,6 @@
-FROM python:3.13-slim-bookworm
+# Python 3.12: rpi-lgpio needs lgpio, which has no 3.13 wheel and does
+# not build from source here (CI, 2026-11-15).
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 COPY app/requirements.txt ./
