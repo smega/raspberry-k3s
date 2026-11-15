@@ -35,6 +35,19 @@ gateway:
   # so a drained node keeps serving until it actually reboots.
   deployment:
     daemonset: true
+  # ...except during maintenance: a node labelled smega.eu/maintenance loses
+  # its gateway, so its NodePort stops answering and the VPS nginx moves on
+  # after its 2s connect timeout, instead of waiting on a gateway that's
+  # stuck behind an OS upgrade (trixie upgrade of kube-slave2, 2026-11-15:
+  # 4 failed probes). os-upgrade/trixie-inplace.sh in the infra repo sets
+  # and removes the label.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: smega.eu/maintenance
+                operator: DoesNotExist
   admin:
     enabled: true
     type: ClusterIP
