@@ -25,6 +25,15 @@ spec:
               value: public-demo
             - name: STATUS_CONFIGMAP_NAME
               value: status-data
+            # Temporary override (2026-11-17): drops "Nevnap API" from the
+            # default target list while nevnapok.eu has a domain issue.
+            # Revert by deleting this env var once the domain is fixed.
+            - name: STATUS_TARGETS_JSON
+              value: >-
+                {"Personal site": "https://smega.eu", "Cluster dashboard": "https://cluster.smega.eu",
+                "Whoami demo": "https://whoami.smega.eu", "Developer tools": "https://tools.smega.eu",
+                "SEO Checker": "https://seo.smega.eu", "One-time Secret": "https://yaots.smega.eu",
+                "RunGuard": "https://runguard.smega.eu"}
             # Public RunGuard pages of the VPS-side watchers; Secret made by
             # hand (not in this public repo), optional so the checker still
             # runs without it.

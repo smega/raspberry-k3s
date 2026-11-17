@@ -33,7 +33,9 @@ spec:
         - seo.smega.eu:443
         - yaots.smega.eu:443
         - runguard.smega.eu:443
-        - nevnapok.eu:443
+        # Temporarily dropped (2026-11-17): nevnapok.eu has a domain issue,
+        # would just fire noisy cert-expiry alerts. Re-add once fixed.
+        # - nevnapok.eu:443
 ---
 # k3s signs its own certificates with a private CA, so these skip
 # verification and only read the expiry. The API server's serving
