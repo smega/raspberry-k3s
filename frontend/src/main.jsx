@@ -618,11 +618,15 @@ function IncidentEntry({ i }) {
 
 // Loaded only when the tab is opened: the log only grows, and the
 // Services view shouldn't download every write-up to show the status.
+// Not part of the bundle: content/incidents.json in the repo, mounted from
+// a ConfigMap, so a new entry needs no image build.
 function IncidentsView() {
   const [incidents, setIncidents] = useState(null)
   const [error, setError] = useState(false)
   useEffect(() => {
-    import('./incidents.js').then((m) => setIncidents(m.INCIDENTS), () => setError(true))
+    fetch('/content/incidents.json', { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+      .then(setIncidents, () => setError(true))
   }, [])
   return (
     <>

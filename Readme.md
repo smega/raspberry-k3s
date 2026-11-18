@@ -49,6 +49,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `kong/` -- Kong (the cluster's Gateway API implementation) as a Flux
   HelmRelease and its values: 2 gateway and 2 controller replicas on
   different Pis.
+- `content/` -- text the status page loads at runtime (the incident log),
+  served from a ConfigMap: a new entry is a commit, no image build.
 - `kured/` -- automatic, one-at-a-time node reboots after OS updates
   (Mon/Tue/Thu 03:00-06:00, never while an alert is firing).
 - `system-upgrade/` -- system-upgrade-controller and the Plans that keep

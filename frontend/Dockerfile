@@ -1,10 +1,10 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 
-COPY package.json vite.config.js index.html ./
+COPY package.json package-lock.json vite.config.js index.html ./
 COPY src ./src
 COPY public ./public
-RUN npm install
+RUN npm ci
 
 # "Last deploy" line on the page; set by CI (.github/workflows/build-image.yml).
 ARG VITE_BUILD_SHA=""
@@ -18,5 +18,6 @@ FROM nginx:1.30-alpine
 # (Trivy, 2026-11-15: libxslt).
 RUN apk upgrade --no-cache
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

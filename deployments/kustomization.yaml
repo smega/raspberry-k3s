@@ -8,6 +8,7 @@ resources:
   - 02-status-checker-rbac.yaml
   - 03-status-api.yaml
   - 04-status-web.yaml
+  - ../content  # ConfigMap status-content, mounted by status-web
   - 05-status-checker-cronjob.yaml
   - 06-whoami.yaml
   - 07-gateway.yaml

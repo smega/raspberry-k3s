@@ -1,0 +1,15 @@
+# Text the pages load at runtime, not baked into the images: Flux turns the
+# files into a ConfigMap, status-web mounts it at /content/, and the kubelet
+# swaps the files in the running pods about a minute after the ConfigMap
+# changes. A new entry is a commit, no image build. See README.md here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: public-demo
+generatorOptions:
+  # Same name every time, so the mounted files update in place instead of
+  # each change rolling the Deployment.
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: status-content
+    files:
+      - incidents.json

@@ -31,6 +31,13 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
+          # Runtime text (incident log) from content/ via Flux. A directory
+          # mount, not subPath: only then does the kubelet update the files
+          # in place when the ConfigMap changes.
+          volumeMounts:
+            - name: content
+              mountPath: /usr/share/nginx/html/content
+              readOnly: true
           # Keep serving for 10s after SIGTERM: Kong only drops this pod
           # from its upstream once the controller has seen the endpoint go,
           # and until then it still sends requests here.
@@ -45,6 +52,10 @@ spec:
             limits:
               cpu: 150m
               memory: 96Mi
+      volumes:
+        - name: content
+          configMap:
+            name: status-content
 ---
 apiVersion: v1
 kind: Service
