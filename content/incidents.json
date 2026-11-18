@@ -1,5 +1,25 @@
 [
   {
+    "date": "2026-11-17",
+    "title": "Three days of node backups that could not be opened",
+    "impact": "none",
+    "duration": "found before any of them was needed",
+    "what": "Before each OS upgrade, the upgrade script saved every Pi's configuration to another machine. While writing a runbook for replacing a Pi's SD card, I opened one of these backups for the first time: it broke off after a few hundred of its 3,100 files. So did all seven. The script sent the compressed stream through a helper that hides the Pi's login banner, a text filter that quietly cut bytes out of binary data. Every command exited fine and the files had plausible sizes, so nothing looked wrong.",
+    "fix": "Backups now bypass that helper, and the receiving machine reads each one to the end and looks for a known file before accepting it; otherwise the upgrade stops. The next morning that check caught a backup cut short by a network drop.",
+    "lesson": "A backup you have never restored from is a hope. The cluster's own database backups were safe, because they are restore-tested every week; these were not.",
+    "link": "https://github.com/smega/raspberry-k3s/blob/main/postmortems/2026-11-17-unreadable-node-backups.md"
+  },
+  {
+    "date": "2026-11-16",
+    "title": "Switching a Pi to 64-bit removed its ssh server",
+    "impact": "none",
+    "duration": "the Pi was out of rotation for 2.5 hours instead of 30 minutes",
+    "what": "I switched each Pi's operating system from 32-bit to 64-bit in place, rehearsed first on a copy of the system. On the first real Pi, the 32-bit systemd refused to be replaced while it was running, something the copy could not reproduce. The script's automatic repair let the package manager resolve it, and it did so by removing about 100 packages, the ssh server and the network manager among them. A final check noticed and stopped before the reboot, so the Pi stayed up but unreachable over ssh, with no traffic on it.",
+    "fix": "Repaired from inside Kubernetes with a debug pod on the node, reinstalling the missing packages. systemd now switches on its own first, every risky step is simulated and refused if it would remove anything it should not, and the rehearsal looks like a running system. The other three Pis then switched in one go each, with no failed requests.",
+    "lesson": "A rehearsal only proves what it reproduces, and an automatic repair needs a limit checked before it acts.",
+    "link": "https://github.com/smega/raspberry-k3s/blob/main/postmortems/2026-11-16-crossgrade-removed-sshd.md"
+  },
+  {
     "date": "2026-11-15",
     "title": "Game day: seven tries to survive a node that dies",
     "impact": "outage",

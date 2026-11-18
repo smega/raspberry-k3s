@@ -51,6 +51,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   different Pis.
 - `content/` -- text the status page loads at runtime (the incident log),
   served from a ConfigMap: a new entry is a commit, no image build.
+- `postmortems/` -- blameless write-ups of what went wrong and what changed
+  afterwards; the short versions are in the status page's incident log.
 - `kured/` -- automatic, one-at-a-time node reboots after OS updates
   (Mon/Tue/Thu 03:00-06:00, never while an alert is firing).
 - `system-upgrade/` -- system-upgrade-controller and the Plans that keep
