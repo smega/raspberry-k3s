@@ -115,9 +115,18 @@ clusters/home/
   notifications.yaml  failed reconciles -> ntfy (same topic as the alerts)
 ```
 
-Secrets are never in git; they're created by hand in the cluster
-(registry pull secret, dashboard secrets, Alertmanager webhook URLs,
-Grafana admin, the private repo's deploy key, the ntfy URL for Flux).
+Secrets live in the private repo, encrypted with SOPS + age; Flux decrypts
+them. Only two are made by hand, because Flux needs them before it can read
+anything: the age key and the private repo's deploy key.
+
+**Rebuild test (2026-11-18):** an empty k3s (in Docker, same version, 4
+nodes), those two Secrets, then Flux from this repo: every Kustomization and
+HelmRelease Ready and every Deployment available after **9.6 minutes**. Only
+the hardware-bound parts stay down (the GPIO LED driver, Prometheus's
+USB-stick volume). The first run never got there: the `kong` and `monitoring`
+namespaces and two charts' CRDs existed only on the live cluster (now in
+git: Namespace manifests, `install.crds: Create`), and failed applies
+waited their 30-minute interval (now `retryInterval: 1m`).
 
 The status ConfigMap is seed-only (`kustomize.toolkit.fluxcd.io/ssa:
 IfNotPresent`): the checker owns its data, Flux only creates it if missing.

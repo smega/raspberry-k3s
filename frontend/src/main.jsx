@@ -807,6 +807,13 @@ function HowItWorksSection() {
             , my own heartbeat monitor, which runs outside the cluster and alerts when they stop. The cluster checks
             the VPS in return.
           </p>
+          <p style={{ ...p, margin: '12px 0 0' }}>
+            <strong style={{ color: INK_PRIMARY }}>Rebuilt from git in about 10 minutes.</strong> Flux applies this
+            repo to the cluster, secrets included (encrypted with SOPS). To prove nothing lives only in the cluster, I
+            rebuilt it from scratch: an empty k3s, two keys, then Flux. Every app was running after 9.6 minutes
+            (2026-11-18; reinstalling the Pis themselves not included). The first attempt never finished: three things
+            existed only on the live cluster, and they are in git now.
+          </p>
           <p style={{ ...p, margin: '16px 0 0' }}>
             Source code, manifests and the full setup:{' '}
             <a href="https://github.com/smega/raspberry-k3s" target="_blank" rel="noreferrer" style={{ color: INK_PRIMARY, fontWeight: 500 }}>
