@@ -1,0 +1,7 @@
+# In git since 2026-11-18: on the live cluster it came from an old
+# `helm install --create-namespace`, so a rebuild from git (rto test in the
+# infra repo) stopped here. Holds Kong (gateway + controller).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kong

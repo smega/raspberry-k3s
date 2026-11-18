@@ -5,6 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./policy-controller
   prune: true
   wait: true
@@ -22,6 +23,7 @@ spec:
   dependsOn:
     - name: policy-controller
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./image-policies
   prune: true
   timeout: 5m

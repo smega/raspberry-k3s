@@ -21,6 +21,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./
   prune: false
   dependsOn:
@@ -39,6 +40,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./secrets
   prune: false
   sourceRef:

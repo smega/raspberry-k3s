@@ -5,6 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./kong
   # Not pruning: Kong was installed before Flux (see monitoring.yaml).
   prune: false

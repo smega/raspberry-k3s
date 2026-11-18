@@ -18,8 +18,14 @@ spec:
         kind: HelmRepository
         name: prometheus-community
         namespace: flux-system
+  # CRDs: created on a first install (an empty cluster, rebuilt from git),
+  # never touched on upgrades - those are applied by hand, server-side,
+  # before a chart bump. A first install on a cold cluster may also fail
+  # on slow pulls; retry it rather than wait for a human.
   install:
-    crds: Skip
+    crds: Create
+    remediation:
+      retries: 3
   upgrade:
     crds: Skip
     # No automatic rollback/uninstall: a failed upgrade stays failed and

@@ -10,6 +10,7 @@ spec:
     - name: monitoring
     - name: kong
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./kured
   prune: true
   timeout: 10m

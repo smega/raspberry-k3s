@@ -5,6 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
   path: ./monitoring
   # Not pruning yet: these objects existed before Flux; switch on once the
   # adoption has been watched for a while.
