@@ -1,0 +1,8 @@
+# For the k6 Jobs only (job.yaml), created by hand, deleted after a run.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: loadtest
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

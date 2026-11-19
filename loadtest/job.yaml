@@ -1,0 +1,51 @@
+# One k6 run inside the cluster, against Kong's in-cluster address (no
+# Cloudflare, no VPS): the cluster's own capacity. Not applied by Flux;
+# run by hand, see loadtest/README.md:
+#   kubectl -n loadtest create configmap k6-script --from-file=ramp.js
+#   TARGET=web envsubst < job.yaml | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-${TARGET}
+  namespace: loadtest
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      # Off the nodes that run the target's pods as far as possible: the
+      # load generator's own CPU would count against them. kube-master
+      # carries Prometheus, so a worker.
+      nodeSelector:
+        kubernetes.io/hostname: ${NODE}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 12345
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: k6
+          image: docker.io/grafana/k6:1.8.3
+          args: ["run", "--quiet", "-e", "STEP=${STEP}", "-e", "TARGET=${TARGET}", "-e", "RATES=${RATES}", "-e", "BUNDLE=${BUNDLE}", "/scripts/ramp.js"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: script
+          configMap:
+            name: k6-script
+        - name: tmp
+          emptyDir: {}
