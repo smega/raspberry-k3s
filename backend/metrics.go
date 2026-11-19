@@ -18,6 +18,7 @@ type metricsService struct {
 	OK            bool   `json:"ok"`
 	LatencyMs     *int   `json:"latencyMs"`
 	LastCheckedAt string `json:"lastCheckedAt"`
+	Error         string `json:"error"`
 }
 
 func writeMetrics(w http.ResponseWriter, dataFile string) {
@@ -62,6 +63,19 @@ func writeMetrics(w http.ResponseWriter, dataFile string) {
 	for _, s := range data.Services {
 		if s.LatencyMs != nil {
 			fmt.Fprintf(&b, "status_service_latency_seconds{%s} %g\n", serviceLabels(s.Name), float64(*s.LatencyMs)/1000)
+		}
+	}
+
+	// Why the last check failed, only while it is failing. The checker keeps
+	// the reason for 24 hours; as a series, Prometheus keeps it for 30 days,
+	// so a single failed check can still be explained a week later. The
+	// values are exception class names or "HTTP <code>", a short list.
+	b.WriteString("# HELP status_service_error 1 while the service's last check failed, with the reason.\n")
+	b.WriteString("# TYPE status_service_error gauge\n")
+	for _, s := range data.Services {
+		if !s.OK && s.Error != "" {
+			reason := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(s.Error)
+			fmt.Fprintf(&b, "status_service_error{%s,error=\"%s\"} 1\n", serviceLabels(s.Name), reason)
 		}
 	}
 

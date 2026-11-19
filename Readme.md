@@ -35,7 +35,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   `/badge/<service>.svg` serves a shields-style uptime badge per service
   (slug of its name, e.g. `personal-site`), for READMEs.
   On a separate, unrouted port (9100) it also exposes the checker's results
-  as Prometheus metrics (`status_service_up`, latency, data age), which feed
+  as Prometheus metrics (`status_service_up`, latency, data age, and
+  `status_service_error` with the reason while a check fails), which feed
   the SLO burn-rate alerts in `deployments/11-status-slo-alerts.yaml`.
 - `.github/workflows/` -- CI: every push to main builds the images whose
   directory changed (arm64, `main-<unix time>-<sha>` tags), signs them with

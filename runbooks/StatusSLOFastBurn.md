@@ -18,6 +18,16 @@ service recovers.
 
 ## Check
 
+0. Why the checks fail, kept 30 days even after the checker's 24h history
+   is gone (in Grafana / Prometheus):
+   ```
+   status_service_error
+   ```
+   `ConnectionError (NameResolutionError)` is DNS, `(NewConnectionError)` a
+   refused connection, `ReadTimeout` a slow answer, `HTTP 5xx` an error
+   page. A check that never reached the VPS nginx (nothing in
+   `/var/log/nginx/<host>.access.log` at that minute) failed on the way out
+   of the cluster.
 1. Open the site from outside (phone, not the home network) and
    https://status.smega.eu: one service red, or all of them?
 2. **All red**: the way in is broken, not the sites. Check from the

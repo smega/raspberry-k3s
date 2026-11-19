@@ -92,8 +92,14 @@ def check_one(name, url):
         status_code = None
         # Class name only (ReadTimeout, ConnectionError, SSLError...): enough
         # to tell a slow service from a dead one, without leaking URLs or
-        # stack details onto a public page.
+        # stack details onto a public page. A ConnectionError also gets
+        # urllib3's reason (NameResolutionError, NewConnectionError,
+        # ConnectTimeoutError...), so DNS can be told from a refused or
+        # dropped connection.
         error = type(e).__name__
+        reason = getattr(e.args[0], "reason", None) if e.args else None
+        if reason is not None:
+            error = f"{error} ({type(reason).__name__})"
 
     if error:
         print(f"{name}: down ({error}, {latency_ms} ms)", flush=True)
