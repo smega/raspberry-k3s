@@ -77,14 +77,17 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 ```
 git push main
   -> GitHub Actions (images.yml -> build-image.yml, arm64 runner)
-       build, push registry.smdoes.eu/raspberry/<image>:main-<time>-<sha>
+       build, Trivy gate (fixable CRITICAL stops it), push
+         registry.smdoes.eu/raspberry/<image>:main-<time>-<sha>
        cosign sign (keyless, GitHub OIDC), Trivy -> Security tab
+       cosign attest: SBOM (SPDX, syft) + SLSA v1 provenance
   -> Flux image automation (image-automation/)
        ImagePolicy picks the newest main-* tag
        ImageUpdateAutomation commits it into the manifest ("Deploy new images")
   -> Flux applies that commit like any other change
-  -> policy-controller checks the signature when the pod is created
-       (image-policies/: signed by build-image.yml on main, or a warning)
+  -> policy-controller checks, when the pod is created (image-policies/):
+       signed by build-image.yml on main, an SBOM, and provenance whose
+       builder is that workflow; otherwise the pod is refused
   -> status-web only: Flagger releases it as a canary (below)
 ```
 
@@ -95,6 +98,13 @@ tell Flux which line to update. smega/cluster-dashboard uses the same
 build workflow for its two images. Actions are pinned to commit SHAs;
 Renovate (`renovate.json`) proposes updates to them, to base images and to
 the Helm charts, never to the images Flux deploys.
+
+The provenance is written by the build job itself (SLSA Build L2, not L3),
+and both attestations use cosign's legacy format (an `.att` tag): the
+policy-controller can't find the newer bundle format, which is also why
+GitHub's own `attest-build-provenance` isn't used. A cached rebuild of an
+unchanged image gives the same digest, so the attestations cover every
+tag that points at it.
 
 ### Canary releases
 
