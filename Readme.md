@@ -163,6 +163,32 @@ home IP shares GitHub's 60 unauthenticated requests an hour with
 everything else, and one request per commit used them up on the first
 day.
 
+## Logs and traces
+
+`observability/` (Flux, `clusters/home/observability.yaml`):
+
+```
+pods' stdout --(Kubernetes API)--> Alloy --> Loki (3 days)
+status-api, checker --(OTLP)-----> Alloy --> Tempo (24 h)
+                                  Grafana: Prometheus, Loki, Tempo
+```
+
+- **Alloy** is one pod, not a DaemonSet: it reads every pod's log through
+  the API (`loki.source.kubernetes`), so it needs no hostPath and no root,
+  and four copies would cost ~300 MB on the Pis. A line with
+  `trace_id=<32 hex>` gets that id as structured metadata (not a label:
+  one value per request).
+- **status-api** starts a span per request (not `/healthz`) and child
+  spans for its calls to Prometheus and GitHub; its request log line
+  carries the trace id. **The checker** makes one trace per run, a span
+  per site with the HTTP request under it; a failed check's line carries
+  the trace id. Both export only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+- **Grafana** (`monitoring/kube-prometheus-stack-values.yaml`): a log line
+  links to its trace, a trace to the log lines with its id.
+- Loki and Tempo run as single processes on kube-slave1/3 (not the
+  master, which carries Prometheus, and not kube-slave2's slow SD card),
+  all three under Pod Security `restricted`.
+
 ## Pod Security
 
 `public-demo` and `public-dashboard` enforce Pod Security `restricted`
