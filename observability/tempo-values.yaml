@@ -4,7 +4,6 @@ tempo:
   reportingEnabled: false
   retention: 24h
   receivers:
-    jaeger: null
     otlp:
       protocols:
         grpc:
