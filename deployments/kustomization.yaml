@@ -18,3 +18,4 @@ resources:
   - 11-status-slo-alerts.yaml
   - 12-cert-expiry.yaml
   - 13-disruption-budgets.yaml
+  - 14-status-web-canary.yaml

@@ -19,9 +19,11 @@ metadata:
   namespace: public-demo
 spec:
   minAvailable: 1
+  # The serving pods: Flagger's copy of the Deployment. The release
+  # candidate (app: status-web) only runs during a canary analysis.
   selector:
     matchLabels:
-      app: status-web
+      app: status-web-primary
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

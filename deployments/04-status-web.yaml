@@ -4,7 +4,10 @@ metadata:
   name: status-web
   namespace: public-demo
 spec:
-  replicas: 2
+  # No replicas here: Flagger scales this Deployment (the release
+  # candidate) to zero between releases and runs the live version as
+  # status-web-primary; Flux setting a count would fight it. The HPA below
+  # holds the count, and Flagger copies it for the primary.
   selector:
     matchLabels:
       app: status-web
@@ -57,22 +60,26 @@ spec:
           configMap:
             name: status-content
 ---
-apiVersion: v1
-kind: Service
+# Two replicas on two Pis at all times (see the spread above), up to three
+# under load. Flagger makes a status-web-primary copy of this HPA.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
   name: status-web
   namespace: public-demo
-  annotations:
-    # A pod that's gone (drain, reboot) doesn't answer at all; give up on
-    # it after 2s and let Kong retry the other replica (default: 60s).
-    konghq.com/connect-timeout: "2000"
-    # Same for a kept-alive connection to a pod that died under it (node
-    # crash): no reply, no reset, so only a read timeout ends it. Answers
-    # here are small and fast; after 5s Kong retries the other replica.
-    konghq.com/read-timeout: "5000"
 spec:
-  selector:
-    app: status-web
-  ports:
-    - port: 80
-      targetPort: 80
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: status-web
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+# The Services (status-web, -primary, -canary) are Flagger's, from the
+# Canary in 14-status-web-canary.yaml.

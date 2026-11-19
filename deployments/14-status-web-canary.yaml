@@ -1,0 +1,115 @@
+# Canary releases for status-web (Flagger, flagger/ in this repo).
+#
+# A new image (CI -> image automation -> 04-status-web.yaml) changes the
+# status-web Deployment; Flagger then starts it next to the live version
+# (status-web-primary), checks it, and moves traffic over in steps:
+#
+#   pre-rollout   smoke test against the canary alone, before any traffic
+#   every 30s     smoke test again + no container restarts, then +10%
+#   at 50%        promote: the primary gets the new version, canary to 0
+#
+# 3 failed checks in a row and it rolls back: all traffic to the primary
+# (which never stopped serving), the canary scaled to zero, the
+# CanaryRolledBack alert (flagger/alerts.yaml). About 3 minutes either way.
+#
+# The checks are synthetic requests to the canary Service, not visitor
+# traffic: Kong builds one upstream from both weighted backends and its
+# metrics can't tell which one answered, and at 10% of this page's traffic
+# there would be too few requests to judge anyway.
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: status-web
+  namespace: public-demo
+spec:
+  provider: gatewayapi:v1
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: status-web
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: status-web
+  # A canary that isn't ready in 5 minutes (image pull, crash loop) is a
+  # failed release.
+  progressDeadlineSeconds: 300
+  service:
+    port: 80
+    targetPort: 80
+    hosts:
+      - status.smega.eu
+    gatewayRefs:
+      - name: public-gateway
+        namespace: kong
+        sectionName: http
+    # Kong reads these off the backend Services, which are now Flagger's.
+    # A pod that's gone (drain, reboot) doesn't answer at all; give up on
+    # it after 2s and retry another (default: 60s). Same for a kept-alive
+    # connection to a pod that died under it: after 5s.
+    primary:
+      annotations:
+        konghq.com/connect-timeout: "2000"
+        konghq.com/read-timeout: "5000"
+    canary:
+      annotations:
+        konghq.com/connect-timeout: "2000"
+        konghq.com/read-timeout: "5000"
+  analysis:
+    interval: 30s
+    threshold: 3
+    stepWeight: 10
+    maxWeight: 50
+    metrics:
+      - name: no restarts
+        templateRef:
+          name: container-restarts
+          namespace: public-demo
+        thresholdRange:
+          max: 0
+        interval: 1m
+    webhooks:
+      - name: smoke test before traffic
+        type: pre-rollout
+        url: http://loadtester.flagger-system/
+        timeout: 30s
+        metadata:
+          type: bash
+          cmd: &smoke >-
+            set -o pipefail;
+            base=http://status-web-canary.public-demo;
+            page=$(curl -sf --max-time 5 $base/) &&
+            grep -q '<div id="app">' <<<"$page" &&
+            js=$(grep -o '/assets/index-[^"]*\.js' <<<"$page" | head -1) &&
+            [ -n "$js" ] &&
+            curl -sf --max-time 5 -o /dev/null "$base$js" &&
+            curl -sf --max-time 5 $base/content/incidents.json | jq -e 'type == "array"' >/dev/null
+      - name: smoke test
+        type: rollout
+        url: http://loadtester.flagger-system/
+        timeout: 30s
+        metadata:
+          type: bash
+          cmd: *smoke
+---
+# Restarts of the canary's containers in the last interval. The pod name
+# regex only matches the canary (status-web-<rs>-<id>), not the primary
+# (status-web-primary-<rs>-<id>); PromQL regexes are anchored.
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: container-restarts
+  namespace: public-demo
+spec:
+  provider:
+    type: prometheus
+    address: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+  query: |
+    sum(
+      increase(
+        kube_pod_container_status_restarts_total{
+          namespace="{{ namespace }}",
+          pod=~"{{ target }}-[0-9a-z]+-[0-9a-z]{5}"
+        }[{{ interval }}]
+      )
+    ) or vector(0)
