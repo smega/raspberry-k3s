@@ -1,0 +1,32 @@
+# A Pi's root filesystem (SD card) filling up. The stock
+# NodeFilesystemAlmostOutOfSpace waits for under 5% free for 30 minutes;
+# game day 2026-11-19 filled kube-slave3 to 93% and nothing reached the
+# phone, while the kubelet had already reported DiskPressure and evicted
+# pods (the Kong gateway first) at 84%: k3s keeps containerd on the root
+# filesystem, and the kubelet wants 15% of it free. So: warn at 80%,
+# before that line.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-disk
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: node-disk
+      rules:
+        - alert: NodeRootDiskFilling
+          expr: >-
+            100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeRootDiskFilling.md
+            summary: "Root filesystem of {{ $labels.instance }} is {{ $value | printf \"%.0f\" }}% full"
+            description: >-
+              Above 85% the kubelet reports DiskPressure and starts evicting
+              pods from the node (the Kong gateway among the first), and an
+              SD card that full gets slow. Find what grew before then.

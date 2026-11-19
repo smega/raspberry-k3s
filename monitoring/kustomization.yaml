@@ -8,6 +8,7 @@ resources:
   - kube-prometheus-stack.yaml
   - blackbox.yaml
   - maintenance-rules.yaml
+  - node-disk-rules.yaml
 configMapGenerator:
   - name: kube-prometheus-stack-values
     namespace: monitoring

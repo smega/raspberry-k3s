@@ -19,6 +19,7 @@ fix, and what happened the last times.
 | [CanaryRolledBack](CanaryRolledBack.md) | warning | `flagger/alerts.yaml` |
 | [CanaryStuck](CanaryStuck.md) | warning | `flagger/alerts.yaml` |
 | [NodeCordonedTooLong](NodeCordonedTooLong.md) | warning | `monitoring/maintenance-rules.yaml` |
+| [NodeRootDiskFilling](NodeRootDiskFilling.md) | warning | `monitoring/node-disk-rules.yaml` |
 
 `NodeMaintenance` (same file) has no page: it notifies no one, it only
 inhibits the drain and reboot noise while a node is cordoned.
