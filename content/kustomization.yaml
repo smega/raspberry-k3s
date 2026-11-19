@@ -9,6 +9,11 @@ generatorOptions:
   # Same name every time, so the mounted files update in place instead of
   # each change rolling the Deployment.
   disableNameSuffixHash: true
+  annotations:
+    # Flagger would otherwise copy it to status-content-primary for the
+    # live pods and only update that copy by promoting a canary: every new
+    # incident a 3-minute release. Text isn't code; it stays live in place.
+    flagger.app/config-tracking: disabled
 configMapGenerator:
   - name: status-content
     files:
