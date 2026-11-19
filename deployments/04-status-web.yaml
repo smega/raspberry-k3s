@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/status-web:main-1795082634-462e27f # {"$imagepolicy": "flux-system:status-web"}
+          image: registry.smdoes.eu/raspberry/status-web:main-1795097544-937cf53 # {"$imagepolicy": "flux-system:status-web"}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
