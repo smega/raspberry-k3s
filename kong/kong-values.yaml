@@ -61,11 +61,6 @@ gateway:
       servicePort: 8444
   env:
     database: "off"
-    # nginx starts one worker per core (4 on a Pi), each with its own Lua
-    # VM and caches: ~300 MiB per gateway, on every node. The pod is capped
-    # at 500m CPU anyway (it peaked at 0.46 at 1500 req/s, loadtest/), so
-    # two workers lose nothing and save memory on all four Pis.
-    nginx_worker_processes: "2"
   manager:
     enabled: false
   portal:
