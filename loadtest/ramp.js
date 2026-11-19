@@ -9,6 +9,10 @@
 //          VPS nginx), the Host header picks the site
 //   TARGET web | bundle | api | nodes
 //   RATES  comma-separated requests per second, one step each
+//   VIA_VPS=1  run on the VPS: https to the site's own name, resolved to
+//          the VPS nginx (127.0.0.1), so TLS, nginx and Tailscale are in
+//          the path and only Cloudflare is left out
+//   GZIP=1 ask for gzip, as Cloudflare does
 import http from 'k6/http';
 import { check } from 'k6';
 
@@ -51,7 +55,14 @@ RATES.forEach((r, i) => {
   thresholds[`dropped_iterations{rate:${r}}`] = ['count>=0'];
 });
 
+const VIA_VPS = __ENV.VIA_VPS === '1';
+const hosts = {};
+if (VIA_VPS) Object.values(targets).forEach((x) => { hosts[x.host] = '127.0.0.1'; });
+const headers = { Host: t.host };
+if (__ENV.GZIP === '1') headers['Accept-Encoding'] = 'gzip';
+
 export const options = {
+  hosts,
   insecureSkipTLSVerify: true,
   discardResponseBodies: true,
   scenarios,
@@ -60,7 +71,8 @@ export const options = {
 };
 
 export default function () {
-  const res = http.get(`${BASE}${t.path}`, { headers: { Host: t.host }, timeout: '10s', tags: { target: TARGET } });
+  const url = VIA_VPS ? `https://${t.host}${t.path}` : `${BASE}${t.path}`;
+  const res = http.get(url, { headers, timeout: '10s', tags: { target: TARGET } });
   check(res, { '2xx': (r) => r.status >= 200 && r.status < 300 });
 }
 

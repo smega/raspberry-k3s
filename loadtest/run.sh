@@ -18,7 +18,16 @@ mkdir -p "$dir"
 
 kubectl apply -f namespace.yaml >/dev/null
 kubectl -n loadtest create configmap k6-script --from-file=ramp.js --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-if [ "${POSTONLY:-0}" = 1 ]; then
+if [ "${VIA:-cluster}" = vps ]; then
+  # k6 on the VPS in docker, through its own nginx and Tailscale.
+  ssh root@manage 'mkdir -p /tmp/k6' && scp -q ramp.js root@manage:/tmp/k6/ramp.js
+  start=$(date +%s)
+  echo "k6 on the VPS: $TARGET, $RATES req/s, $STEP each"
+  ssh root@manage "docker run --rm --network host -v /tmp/k6:/scripts:ro docker.io/grafana/k6:1.8.3 run --quiet \
+    -e VIA_VPS=1 -e GZIP=${GZIP:-0} -e TARGET=$TARGET -e RATES=$RATES -e STEP=$STEP -e BUNDLE=$BUNDLE /scripts/ramp.js; rm -rf /tmp/k6" > "$dir/k6.log" 2>&1
+  end=$(date +%s)
+  NODE=vps
+elif [ "${POSTONLY:-0}" = 1 ]; then
   # Numbers for a Job that already ran (its pod still there).
   ts() { date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null || date -u -d "$1" +%s; }
   start=$(ts "$(kubectl -n loadtest get "job/k6-$TARGET" -o jsonpath='{.status.startTime}')")
@@ -29,10 +38,10 @@ else
   echo "k6-$TARGET running: $RATES req/s, $STEP each"
 fi
 # kubectl wait with two --for conditions waits for both; poll instead.
-until [ -n "$(kubectl -n loadtest get "job/k6-$TARGET" -o jsonpath='{.status.succeeded}{.status.failed}')" ]; do sleep 10; done
-end=$(date +%s)
+[ "${VIA:-cluster}" = vps ] || until [ -n "$(kubectl -n loadtest get "job/k6-$TARGET" -o jsonpath='{.status.succeeded}{.status.failed}')" ]; do sleep 10; done
+[ "${VIA:-cluster}" = vps ] || end=$(date +%s)
 [ "${POSTONLY:-0}" = 1 ] && end=$(ts "$(kubectl -n loadtest get "job/k6-$TARGET" -o jsonpath='{.status.completionTime}')")
-kubectl -n loadtest logs "job/k6-$TARGET" > "$dir/k6.log"
+[ "${VIA:-cluster}" = vps ] || kubectl -n loadtest logs "job/k6-$TARGET" > "$dir/k6.log"
 awk '/=====K6-SUMMARY=====/{f=1;next} /=====END=====/{f=0} f' "$dir/k6.log" > "$dir/k6-summary.json"
 printf '{"target":"%s","rates":"%s","step":"%s","k6_node":"%s","start":%s,"end":%s}\n' \
   "$TARGET" "$RATES" "$STEP" "$NODE" "$start" "$end" > "$dir/run.json"

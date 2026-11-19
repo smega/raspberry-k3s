@@ -76,6 +76,29 @@ that's the cache alone; visitors through Cloudflare get the 17 KB gzipped
 response. Its pods are at their 250m limit again, ~100% throttled, with
 the nodes at 52-81%.
 
+### Through the VPS (same day, after a 500m limit for status-api)
+
+`VIA=vps ./run.sh`: k6 in docker on the VPS, the sites' own names resolved
+to its nginx, gzip asked for as Cloudflare does. So TLS, nginx, Tailscale
+and Kong are all in the path; only Cloudflare isn't.
+
+| req/s | status page p50 / p95 ms | /api/status p50 / p95 ms | failed |
+|---|---|---|---|
+| 10-200 | 95-96 / 99-100 | 142 / 147-149 | 0 |
+| 400 | 96 / 101 | 147 / 165 | 0 |
+| 600 | 98 / 105 | | 0 |
+| 800 | 100 / 109 | | 0 |
+
+- ~95 ms is the floor: the VPS opens a new connection over Tailscale to a
+  node for every request (no keepalive pool, on purpose since the
+  node-crash game day), two round trips to the home line each time.
+- /api/status no longer hit its CPU limit (0.3 of 0.5 cores), but all four
+  nodes went to 85-93% CPU at 400 req/s. On a worker at 300 req/s:
+  tailscaled ~50% of a core, containerd ~33%, k3s-agent ~25%, Alloy ~25%,
+  Kong ~17%. Tailscale's WireGuard runs in user space, and status-api's
+  per-request log line (with the trace id) costs containerd, Alloy and
+  Loki work at that rate.
+
 Caveats: one run per target, the load generator on a node of the same
 cluster (its CPU counts on kube-slave3), compressed responses discarded,
 and nothing in front of Kong; through the VPS and Cloudflare the numbers
