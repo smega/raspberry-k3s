@@ -153,6 +153,33 @@ home IP shares GitHub's 60 unauthenticated requests an hour with
 everything else, and one request per commit used them up on the first
 day.
 
+## Pod Security
+
+`public-demo` and `public-dashboard` enforce Pod Security `restricted`
+(`deployments/00-namespaces.yaml`): no pod there runs as root, adds a
+capability, escalates privileges or runs without the runtime's seccomp
+profile. What that took:
+
+- the Go and Python images run as a fixed numeric user set in the
+  manifest (the kubelet can't check `runAsNonRoot` against a user name);
+- the nginx images run the official image as its nginx user (uid 101),
+  pid and temp files in `/tmp` (an emptyDir; the root filesystem is
+  read-only). Not `nginx-unprivileged`: it was a release behind with a
+  CRITICAL CVE, and the CI's Trivy gate stopped the build;
+- port 80 stays: the pods lower the unprivileged port range with the safe
+  sysctl `net.ipv4.ip_unprivileged_port_start=0`, so no Service or route
+  changed;
+- pods that never call the Kubernetes API don't get a ServiceAccount
+  token.
+
+A CIS benchmark (kube-bench, k3s profile) run in a pod reports most
+control-plane checks as failed on k3s: the profile reads the flags from
+`journalctl`, which the image doesn't have. Checked on the host instead,
+they pass (anonymous auth off, Node+RBAC, NodeRestriction, profiling off,
+kubelet read-only port closed). Falco isn't running: the Raspberry Pi
+kernel has no BTF, so its eBPF driver can't load without being compiled
+for every kernel update.
+
 ## Readonly dashboard: what it can and can't see
 
 `public-dashboard-sa` (the dashboard backend's service account) is granted a
