@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -72,52 +74,101 @@ type doraInfo struct {
 	RestoreSeconds *int64 `json:"restoreSeconds"`
 }
 
-// commitTimes looks up commit dates on GitHub and keeps them: a commit's
-// date never changes, so each sha costs one request ever, well inside the
-// 60 an hour GitHub allows without a token.
+// commitTimes keeps commit dates from GitHub. A commit's date never
+// changes, so the list of the window's commits is fetched only when a
+// deploy's sha isn't in it yet: one request (a page of 100) per new build,
+// not one per commit. Without a token GitHub allows 60 an hour per IP, and
+// the home IP shares them with everything else that asks.
 type commitTimes struct {
 	http *http.Client
 
-	mu    sync.Mutex
-	known map[string]int64
+	mu      sync.Mutex
+	known   map[string]int64 // full sha -> commit time
+	fetched time.Time
 }
 
-func (c *commitTimes) get(ctx context.Context, sha string) (int64, bool) {
+const (
+	commitPages      = 3
+	commitRefetchGap = 10 * time.Minute
+)
+
+func (c *commitTimes) lookup(sha string) (int64, bool) {
+	for full, t := range c.known {
+		if strings.HasPrefix(full, sha) {
+			return t, true
+		}
+	}
+	return 0, false
+}
+
+// load fetches the commits on main since the given time, newest first.
+func (c *commitTimes) load(ctx context.Context, since time.Time) error {
+	for page := 1; page <= commitPages; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(
+			"https://api.github.com/repos/%s/commits?sha=main&per_page=100&page=%d&since=%s",
+			doraRepo, page, since.UTC().Format(time.RFC3339)), nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Accept", "application/vnd.github+json")
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return err
+		}
+		var body []struct {
+			SHA    string `json:"sha"`
+			Commit struct {
+				Committer struct {
+					Date time.Time `json:"date"`
+				} `json:"committer"`
+			} `json:"commit"`
+		}
+		if resp.StatusCode != http.StatusOK {
+			err = fmt.Errorf("github commits: HTTP %d", resp.StatusCode)
+		} else {
+			err = json.NewDecoder(resp.Body).Decode(&body)
+		}
+		resp.Body.Close()
+		if err != nil {
+			return err
+		}
+		for _, cm := range body {
+			c.known[cm.SHA] = cm.Commit.Committer.Date.Unix()
+		}
+		if len(body) < 100 {
+			return nil
+		}
+	}
+	return nil
+}
+
+// times returns the commit time per short sha, fetching the list again if
+// one is missing and the last try was long enough ago.
+func (c *commitTimes) times(ctx context.Context, shas []string, since time.Time) map[string]int64 {
 	c.mu.Lock()
-	t, ok := c.known[sha]
-	c.mu.Unlock()
-	if ok {
-		return t, true
+	defer c.mu.Unlock()
+	out := map[string]int64{}
+	missing := false
+	for _, sha := range shas {
+		if t, ok := c.lookup(sha); ok {
+			out[sha] = t
+		} else {
+			missing = true
+		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		fmt.Sprintf("https://api.github.com/repos/%s/commits/%s", doraRepo, sha), nil)
-	if err != nil {
-		return 0, false
+	if !missing || time.Since(c.fetched) < commitRefetchGap {
+		return out
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return 0, false
+	c.fetched = time.Now()
+	if err := c.load(ctx, since); err != nil {
+		log.Printf("dora: commit dates from GitHub: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return 0, false
+	for _, sha := range shas {
+		if t, ok := c.lookup(sha); ok {
+			out[sha] = t
+		}
 	}
-	var body struct {
-		Commit struct {
-			Committer struct {
-				Date time.Time `json:"date"`
-			} `json:"committer"`
-		} `json:"commit"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil || body.Commit.Committer.Date.IsZero() {
-		return 0, false
-	}
-	t = body.Commit.Committer.Date.Unix()
-	c.mu.Lock()
-	c.known[sha] = t
-	c.mu.Unlock()
-	return t, true
+	return out
 }
 
 // build is one image tag of status-web and when it got where.
@@ -173,7 +224,8 @@ func (p *promClient) dora(ctx context.Context, commits *commitTimes) (*doraInfo,
 		}
 	}
 
-	var leads []int64
+	prods := map[*build]int64{}
+	var shas []string
 	for _, b := range builds {
 		// Before the canary there was no primary: the first pod was
 		// production. After it, only a promotion counts.
@@ -184,11 +236,18 @@ func (p *promClient) dora(ctx context.Context, commits *commitTimes) (*doraInfo,
 		if prod == 0 || prod < windowStart {
 			continue
 		}
+		prods[b] = prod
+		shas = append(shas, b.sha)
 		info.Deploys++
 		if info.Since == nil || prod < *info.Since {
 			info.Since = &prod
 		}
-		if t, ok := commits.get(ctx, b.sha); ok && prod >= t {
+	}
+	// A week before the window: a deploy's commit can be older than it.
+	commitTime := commits.times(ctx, shas, end.Add(-doraWindow-7*24*time.Hour))
+	var leads []int64
+	for b, prod := range prods {
+		if t, ok := commitTime[b.sha]; ok && prod >= t {
 			leads = append(leads, prod-t)
 		}
 	}

@@ -146,8 +146,11 @@ time to restore    median from a failed release's start to its rollback
 The window is 30 days, as long as Prometheus keeps history. Only
 status-web goes through the canary, so only its releases count; platform
 changes (Kong, k3s upgrades) that went wrong are in the incident log
-instead. GitHub dates each commit once and the answer is kept, so the
-API stays far below the 60 unauthenticated requests an hour.
+instead. Commit dates come from one listing of the window's commits (a page
+of 100), fetched again only when a deploy's commit isn't in it yet: the
+home IP shares GitHub's 60 unauthenticated requests an hour with
+everything else, and one request per commit used them up on the first
+day.
 
 ## Readonly dashboard: what it can and can't see
 
