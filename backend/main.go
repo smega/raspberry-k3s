@@ -42,14 +42,21 @@ func main() {
 	// history, per-service checks) -- this handler just serves whatever
 	// JSON it last wrote, byte for byte, rather than re-parsing it into a
 	// Go struct the two services would have to keep in sync.
+	status := &statusFile{path: dataFile}
 	router.GET("/api/status", func(c *gin.Context) {
-		b, err := os.ReadFile(dataFile)
+		plain, gzipped, err := status.get()
 		if err != nil {
 			log.Printf("could not read data file %s: %v", dataFile, err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "status data not available yet"})
 			return
 		}
-		c.Data(http.StatusOK, "application/json", b)
+		c.Header("Vary", "Accept-Encoding")
+		if acceptsGzip(c.GetHeader("Accept-Encoding")) {
+			c.Header("Content-Encoding", "gzip")
+			c.Data(http.StatusOK, "application/json", gzipped)
+			return
+		}
+		c.Data(http.StatusOK, "application/json", plain)
 	})
 
 	router.GET("/badge/:file", func(c *gin.Context) {
