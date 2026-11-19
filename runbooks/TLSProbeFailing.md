@@ -4,15 +4,17 @@
 
 ## What fired
 
-For 3 hours the blackbox exporter couldn't complete a TLS handshake with
-`instance` (`job` says which group, see
+For about 2 hours (every probe in that time) the blackbox exporter
+couldn't complete a verified TLS handshake with `instance` (`job` says which group, see
 [CertificateExpiresSoon](CertificateExpiresSoon.md)).
 
 ## Impact
 
-Either the certificate is already expired or invalid (verification fails,
-and then no expiry date is reported at all, so the expiry alerts can't
-fire), or the host is down or unreachable from the cluster.
+Either the certificate is invalid (wrong name, incomplete chain) or
+already expired, or the host is down or unreachable from the cluster. An
+expired one also fires CertificateExpiresVerySoon with negative days,
+from the unverified `tls-expiry-*` twin probe (since 2026-11-19); if that
+one is quiet, look at the name and the chain first.
 
 ## Check
 

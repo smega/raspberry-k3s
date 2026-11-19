@@ -4,9 +4,11 @@
 
 ## What fired
 
-A certificate expires in less than 3 days. [CertificateExpiresSoon](CertificateExpiresSoon.md)
-has been firing for over 10 days before this, so the automatic renewal
-has failed.
+A certificate expires in less than 3 days, or (negative days) already
+has. [CertificateExpiresSoon](CertificateExpiresSoon.md) has been firing
+for over 10 days before this, so the automatic renewal has failed. The
+date comes from the unverified `tls-expiry-*` probes, which still read it
+when the certificate is past its date.
 
 ## Impact
 
