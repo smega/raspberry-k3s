@@ -73,12 +73,15 @@ spec:
             preStop:
               sleep:
                 seconds: 10
+          # The CPU limit is what caps throughput (loadtest/, 2026-11-19:
+          # throttled up to 82% at 1000 req/s with 150m while the nodes had
+          # room), so 300m.
           resources:
             requests:
               cpu: 30m
               memory: 32Mi
             limits:
-              cpu: 150m
+              cpu: 300m
               memory: 96Mi
       volumes:
         - name: tmp
@@ -87,8 +90,10 @@ spec:
           configMap:
             name: status-content
 ---
-# Two replicas on two Pis at all times (see the spread above), up to three
-# under load. Flagger makes a status-web-primary copy of this HPA.
+# Two replicas on two Pis at all times (see the spread above), up to four
+# (one per Pi) under load. Flagger makes a status-web-primary copy of this
+# HPA. It only helps if load ramps up: a cold jump to 1200 req/s was over
+# before the third pod started (loadtest/).
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -100,7 +105,7 @@ spec:
     kind: Deployment
     name: status-web
   minReplicas: 2
-  maxReplicas: 3
+  maxReplicas: 4
   metrics:
     - type: Resource
       resource:
