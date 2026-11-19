@@ -78,6 +78,7 @@ func main() {
 	prom := &promClient{base: promURL, http: &http.Client{Timeout: 5 * time.Second}}
 	nodes := &nodesCache{prom: prom}
 	release := &releaseCache{prom: prom}
+	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second}, known: map[string]int64{}}}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
 		resp, err := nodes.get(c.Request.Context())
@@ -94,6 +95,16 @@ func main() {
 		if err != nil {
 			log.Printf("could not read the last release: %v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "release info not available"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	router.GET("/api/dora", func(c *gin.Context) {
+		resp, err := dora.get(c.Request.Context())
+		if err != nil {
+			log.Printf("could not compute the DORA metrics: %v", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "DORA metrics not available"})
 			return
 		}
 		c.JSON(http.StatusOK, resp)

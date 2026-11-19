@@ -30,6 +30,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   `/api/release` reports the last canary release of the status page
   (promoted or rolled back, when, how long), read from Flagger's
   `flagger_canary_status` series.
+  `/api/dora` reports the four DORA metrics for the status page over 30
+  days (see "Delivery metrics" below), cached for 10 minutes.
   `/badge/<service>.svg` serves a shields-style uptime badge per service
   (slug of its name, e.g. `personal-site`), for READMEs.
   On a separate, unrouted port (9100) it also exposes the checker's results
@@ -122,6 +124,30 @@ root element renamed: the build passes, the page renders empty) failed
 the pre-rollout smoke test three times and was rolled back after about 2
 minutes without getting a single request; a probe through Cloudflare
 every second saw 609 good pages and no errors through the whole test.
+
+### Delivery metrics (DORA)
+
+The Cluster tab shows the four DORA metrics for status-web, computed by
+status-api (`backend/dora.go`) from data that already exists, nothing
+entered by hand:
+
+```
+deploy             a build that reached the live version: the first
+                   status-web-primary pod running its tag (or, for builds
+                   from before the canary, the first pod), from
+                   kube-state-metrics (kube_pod_created + the image tag)
+lead time          median from the commit (GitHub API, by the sha in the
+                   tag main-<build time>-<sha>) to that pod
+change failure     a canary Flagger rolled back (flagger_canary_status 2),
+                   over all finished changes
+time to restore    median from a failed release's start to its rollback
+```
+
+The window is 30 days, as long as Prometheus keeps history. Only
+status-web goes through the canary, so only its releases count; platform
+changes (Kong, k3s upgrades) that went wrong are in the incident log
+instead. GitHub dates each commit once and the answer is kept, so the
+API stays far below the 60 unauthenticated requests an hour.
 
 ## Readonly dashboard: what it can and can't see
 

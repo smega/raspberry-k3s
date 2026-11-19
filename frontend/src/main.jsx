@@ -812,6 +812,81 @@ function LastRelease({ apiBase }) {
   )
 }
 
+function formatDuration(seconds) {
+  if (seconds < 90) return `${Math.round(seconds)} s`
+  if (seconds < 90 * 60) return `${Math.round(seconds / 60)} min`
+  if (seconds < 48 * 3600) return `${(seconds / 3600).toFixed(1)} h`
+  return `${Math.round(seconds / 86400)} days`
+}
+
+function StatTile({ label, value, detail }) {
+  return (
+    <div style={{ flex: '1 1 150px', minWidth: 0 }}>
+      <div style={{ fontSize: '12px', color: INK_MUTED, marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: '26px', fontWeight: 600, color: INK_PRIMARY, lineHeight: 1.2 }}>{value}</div>
+      <div style={{ fontSize: '12px', color: INK_SECONDARY, marginTop: '4px' }}>{detail}</div>
+    </div>
+  )
+}
+
+// The four DORA metrics for this page, from status-api's /api/dora:
+// measured from the cluster and GitHub, nothing typed in by hand.
+function DeliverySection({ apiBase }) {
+  const [d, setD] = useState(null)
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`${apiBase}/api/dora`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v) => setD(v))
+        .catch(() => setD(null))
+    }
+    load()
+    const interval = setInterval(load, 10 * 60_000)
+    return () => clearInterval(interval)
+  }, [apiBase])
+
+  if (!d || !d.deploys) return null
+  const windowStart = Date.now() / 1000 - d.windowDays * 86400
+  const span =
+    d.since != null && d.since > windowStart + 86400
+      ? `since ${new Date(d.since * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
+      : `in the last ${d.windowDays} days`
+  const changes = d.deploys + d.failed
+  const p = { margin: '16px 0 0', fontSize: '13px', color: INK_SECONDARY, lineHeight: 1.6, maxWidth: '720px' }
+  return (
+    <section style={{ marginTop: '48px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 16px', color: INK_PRIMARY }}>How often it ships</h2>
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px' }}>
+          <StatTile label="Deploys" value={d.deploys} detail={span} />
+          <StatTile
+            label="Lead time"
+            value={d.leadTimeSeconds != null ? formatDuration(d.leadTimeSeconds) : '-'}
+            detail="median, commit to live"
+          />
+          <StatTile
+            label="Change failure rate"
+            value={d.changeFailureRate != null ? `${Math.round(d.changeFailureRate * 100)}%` : '-'}
+            detail={`${d.failed} of ${changes} changes rolled back`}
+          />
+          <StatTile
+            label="Time to restore"
+            value={d.restoreSeconds != null ? formatDuration(d.restoreSeconds) : '-'}
+            detail={d.failed ? 'median, failed release to rollback' : 'no failed release'}
+          />
+        </div>
+        <p style={p}>
+          The four DORA metrics for this page, measured, not typed in: a deploy is a build that reached the live
+          version (Flagger's primary), lead time runs from the commit on GitHub to that moment, and a failure is a
+          canary Flagger rolled back. Platform changes such as Kong or k3s upgrades are not deploys of this page; when
+          they went wrong, they are in the incident list.
+        </p>
+      </Card>
+    </section>
+  )
+}
+
 function HowItWorksSection({ apiBase }) {
   const p = { margin: '0 0 12px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6 }
   return (
@@ -1230,6 +1305,7 @@ function ClusterView({ apiBase }) {
     <>
       <h1 style={{ fontSize: '28px', fontWeight: 600, margin: '0 0 10px', color: INK_PRIMARY }}>Raspberry Pi cluster</h1>
       <NodesSection apiBase={apiBase} />
+      <DeliverySection apiBase={apiBase} />
       <HowItWorksSection apiBase={apiBase} />
     </>
   )
