@@ -8,6 +8,9 @@ podMonitor:
   enabled: true
   additionalLabels:
     release: grafana
+  # Keep the metrics' own namespace label (the Canary's, e.g. public-demo);
+  # otherwise Prometheus overwrites it with flagger-system, the pod's.
+  honorLabels: true
 resources:
   requests:
     cpu: 10m
