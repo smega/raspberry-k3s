@@ -10,7 +10,9 @@ loki:
     type: filesystem
   schemaConfig:
     configs:
-      - from: "2026-11-19"
+      # Well before the first log line: Alloy sends each pod's whole log
+      # on its first read, lines from before the install day included.
+      - from: "2024-01-01"
         store: tsdb
         object_store: filesystem
         schema: v13
