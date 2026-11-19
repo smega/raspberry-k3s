@@ -4,6 +4,7 @@
 # series for the same window (nodes, the target's pods, Kong, HPA).
 #
 #   TARGET=web RATES=25,50,100 NODE=kube-slave3 OUT=~/loadtest-data ./run.sh
+#   VIA=vps GZIP=1 TARGET=api RATES=10,50,100 ./run.sh   (k6 on the VPS)
 set -euo pipefail
 cd "$(dirname "$0")"
 : "${TARGET:=web}" "${RATES:=25,50,100,200,300,400,600}" "${STEP:=1m}" "${NODE:=kube-slave3}" "${BUNDLE:=/}"
