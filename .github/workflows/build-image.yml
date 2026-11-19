@@ -183,7 +183,11 @@ jobs:
             set -- $att
             cosign attest --yes --new-bundle-format=false --use-signing-config=false \
               --type "$1" --predicate "$RUNNER_TEMP/$2" "${REPO}@${DIGEST}"
-            cosign verify-attestation --type "$1" "${REPO}@${DIGEST}" \
+            # --new-bundle-format=false: look for the .att tag. cosign v3 checks
+            # the new bundles by default and, when an image already has some
+            # (an unchanged image rebuilt to the same digest), never looks
+            # further.
+            cosign verify-attestation --new-bundle-format=false --type "$1" "${REPO}@${DIGEST}" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               --certificate-identity https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main \
               > /dev/null
