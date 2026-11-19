@@ -123,7 +123,7 @@ jobs:
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       # Signed by this workflow file on main, whichever repo called it; the
-      # cluster checks for exactly this identity (kyverno/).
+      # cluster checks for exactly this identity (image-policies/).
       #
       # Legacy signature format (a .sig tag), not cosign v3's default
       # bundle-as-OCI-referrer: the cluster's policy-controller (0.13) only
@@ -136,6 +136,60 @@ jobs:
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             --certificate-identity https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main \
             > /dev/null
+
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+
+      # Two attestations next to the signature, signed by the same identity,
+      # in the same legacy format (an .att tag) for the same reason, and
+      # required by the cluster (image-policies/):
+      # - an SBOM (SPDX, syft) of exactly the bytes that were scanned and
+      #   pushed (the OCI directory);
+      # - SLSA v1 provenance: which repo and commit, which workflow, which
+      #   run. Written by this job itself, so it is as trustworthy as the
+      #   workflow (SLSA Build L2), not L3 (that needs a builder the job
+      #   can't influence). Not actions/attest-build-provenance: it only
+      #   writes the new bundle format, which the policy-controller can't
+      #   find.
+      - name: SBOM and provenance attestations
+        env:
+          IMAGE: ${{ inputs.image }}
+          CONTEXT: ${{ inputs.context }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+          STARTED: ${{ steps.tag.outputs.time }}
+        run: |
+          syft scan "oci-dir:$RUNNER_TEMP/image" -o spdx-json="$RUNNER_TEMP/sbom.spdx.json" -q
+          jq -n \
+            --arg builder "https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main" \
+            --arg repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --arg ref "$GITHUB_REF" --arg sha "$GITHUB_SHA" \
+            --arg workflow "$GITHUB_WORKFLOW_REF" --arg event "$GITHUB_EVENT_NAME" \
+            --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --arg image "$IMAGE" --arg context "$CONTEXT" --arg started "$STARTED" \
+            --arg finished "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg runner "$RUNNER_ENVIRONMENT" '{
+              buildDefinition: {
+                buildType: "https://actions.github.io/buildtypes/workflow/v1",
+                externalParameters: {
+                  workflow: {ref: $ref, repository: $repo, path: $workflow},
+                  inputs: {image: $image, context: $context}
+                },
+                internalParameters: {github: {event_name: $event, runner_environment: $runner}},
+                resolvedDependencies: [{uri: ("git+" + $repo + "@" + $ref), digest: {gitCommit: $sha}}]
+              },
+              runDetails: {
+                builder: {id: $builder},
+                metadata: {invocationId: $run, startedOn: $started, finishedOn: $finished}
+              }
+            }' > "$RUNNER_TEMP/provenance.json"
+          for att in "spdxjson sbom.spdx.json" "slsaprovenance1 provenance.json"; do
+            set -- $att
+            cosign attest --yes --new-bundle-format=false --use-signing-config=false \
+              --type "$1" --predicate "$RUNNER_TEMP/$2" "${REPO}@${DIGEST}"
+            cosign verify-attestation --type "$1" "${REPO}@${DIGEST}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main \
+              > /dev/null
+          done
+          echo "packages=$(jq '.packages | length' "$RUNNER_TEMP/sbom.spdx.json")" >> "$GITHUB_OUTPUT"
+        id: attest
 
       # Full report (CRITICAL to LOW) for the Security tab, fixable ones
       # only: unfixed distro CVEs (util-linux on Debian...) can't be acted
@@ -167,4 +221,5 @@ jobs:
             echo "- tag: \`${{ steps.tag.outputs.tag }}\`"
             echo "- digest: \`${{ steps.push.outputs.digest }}\`"
             echo "- no fixable CRITICAL vulnerability (Trivy), signed and verified (cosign keyless)"
+            echo "- attested: SBOM (SPDX, ${{ steps.attest.outputs.packages }} packages) and SLSA v1 provenance"
           } >> "$GITHUB_STEP_SUMMARY"
