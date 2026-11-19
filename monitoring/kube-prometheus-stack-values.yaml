@@ -76,6 +76,21 @@ grafana:
           customQuery: true
           # Both traced apps (status-api, the checker) run in public-demo.
           query: '{namespace="public-demo"} | trace_id="$${__trace.traceId}"'
+# k3s runs the API server inside the same process as kube-master's
+# kubelet, so the kubelet's /metrics also carries every apiserver_* and
+# etcd_* histogram: about 55k series (of 207k) that the apiserver job
+# already scrapes, with no rule or dashboard reading them from here. On a
+# 4 GB control plane that's Prometheus memory for nothing (2026-11-19).
+# The chart's own default drop is kept above them.
+kubelet:
+  serviceMonitor:
+    metricRelabelings:
+      - action: drop
+        sourceLabels: [__name__, le]
+        regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
+      - action: drop
+        sourceLabels: [__name__]
+        regex: (apiserver|etcd)_.*
 prometheus:
   ingress:
     enabled: false
