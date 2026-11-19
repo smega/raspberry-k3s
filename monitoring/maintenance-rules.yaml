@@ -1,0 +1,44 @@
+# Node maintenance and alerts. Every planned way a node goes away cordons
+# it first: kured (reboot after an OS update), system-upgrade-controller
+# (k3s upgrades) and the os-upgrade scripts. So "cordoned" is the one
+# maintenance signal, and NodeMaintenance turns it into an alert that
+# Alertmanager uses to inhibit the noise a drain and a reboot cause
+# (kube-prometheus-stack-values.yaml, inhibit_rules). It notifies no one;
+# as an ALERTS series it is the log of every window, 30 days back.
+#
+# What is never inhibited: the status page SLOs, certificates, canaries,
+# the watchdog. A reboot that visitors notice is a real problem.
+#
+# A node left cordoned would hide those alerts forever, so a cordon
+# longer than the longest planned window (an OS upgrade run, ~1 h) is an
+# alert of its own, and that one isn't inhibited either.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-maintenance
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: node-maintenance
+      rules:
+        - alert: NodeMaintenance
+          expr: max by (node) (kube_node_spec_unschedulable) == 1
+          labels:
+            severity: none
+          annotations:
+            summary: "{{ $labels.node }} is cordoned for maintenance; drain and reboot alerts are inhibited"
+        - alert: NodeCordonedTooLong
+          expr: max by (node) (kube_node_spec_unschedulable) == 1
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeCordonedTooLong.md
+            summary: "{{ $labels.node }} has been cordoned for over 2 hours"
+            description: >-
+              Planned maintenance takes under an hour. While a node is
+              cordoned, node and pod alerts are inhibited cluster-wide, so
+              a forgotten cordon hides real problems. Uncordon it, or find
+              out what is still running on it.

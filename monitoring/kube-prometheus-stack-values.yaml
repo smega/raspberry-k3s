@@ -116,6 +116,9 @@ alertmanager:
           repeat_interval: 5m
         - matchers: [alertname = "InfoInhibitor"]
           receiver: "null"
+        # Only an inhibition source (maintenance-rules.yaml), never sent.
+        - matchers: [alertname = "NodeMaintenance"]
+          receiver: "null"
         - matchers: [severity = "critical"]
           receiver: ntfy-critical
           repeat_interval: 4h
@@ -133,6 +136,14 @@ alertmanager:
         target_matchers: [severity = info]
         equal: [namespace]
       - target_matchers: [alertname = InfoInhibitor]
+      # While any node is cordoned for maintenance (maintenance-rules.yaml),
+      # the alerts a drain and a reboot are expected to cause stay quiet,
+      # on every node: a drained pod's replacement starts elsewhere, and
+      # Alertmanager's own pod (local volume) is down with its node. The
+      # status SLOs, certificates and canaries are not in the list.
+      - source_matchers: [alertname = NodeMaintenance]
+        target_matchers:
+          - alertname =~ "KubeNodeNotReady|KubeNodeUnreachable|KubeNodeReadinessFlapping|KubeletDown|KubeletInstanceUnreachable|TargetDown|KubePodNotReady|KubeContainerWaiting|KubeDeploymentReplicasMismatch|KubeDeploymentRolloutStuck|KubeStatefulSetReplicasMismatch|KubeDaemonSetRolloutStuck|KubeDaemonSetNotScheduled|KubeDaemonSetMisScheduled|KubePdbNotEnoughHealthyPods|KubeHpaReplicasMismatch|PrometheusNotConnectedToAlertmanagers|PrometheusErrorSendingAlertsToSomeAlertmanagers"
     receivers:
       - name: "null"
       # ntfy.sh renders Alertmanager's webhook JSON itself (inline template, above).

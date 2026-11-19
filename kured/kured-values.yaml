@@ -15,7 +15,9 @@ configuration:
   period: 10m
   # Don't reboot while anything is firing: a node going down on top of an
   # incident only makes it worse. Watchdog/InfoInhibitor always fire;
-  # CPUThrottlingHigh is info-level noise on Pis.
+  # CPUThrottlingHigh is info-level noise on Pis. NodeMaintenance
+  # (monitoring/maintenance-rules.yaml) blocks on purpose: no reboot
+  # while another node is cordoned.
   prometheusUrl: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
   alertFilterRegexp: ^(Watchdog|InfoInhibitor|CPUThrottlingHigh)$
   alertFiringOnly: true

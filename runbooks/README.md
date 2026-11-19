@@ -18,6 +18,10 @@ fix, and what happened the last times.
 | [TLSProbeFailing](TLSProbeFailing.md) | warning | `deployments/12-cert-expiry.yaml` |
 | [CanaryRolledBack](CanaryRolledBack.md) | warning | `flagger/alerts.yaml` |
 | [CanaryStuck](CanaryStuck.md) | warning | `flagger/alerts.yaml` |
+| [NodeCordonedTooLong](NodeCordonedTooLong.md) | warning | `monitoring/maintenance-rules.yaml` |
+
+`NodeMaintenance` (same file) has no page: it notifies no one, it only
+inhibits the drain and reboot noise while a node is cordoned.
 
 The kube-prometheus-stack alerts (node, kubelet, Prometheus itself...)
 come with their own `runbook_url`, pointing at
