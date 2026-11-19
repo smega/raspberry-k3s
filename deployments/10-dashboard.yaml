@@ -143,10 +143,19 @@ spec:
               app: dashboard-web
       imagePullSecrets:
         - name: zot-registry
-      # Step 1 of moving nginx off root: the port sysctl and seccomp now, so the
-      # unprivileged image (uid 101, still on port 80) can start here; runAsNonRoot
-      # and the rest follow once it is deployed.
+      # No Kubernetes API calls from this pod, so no ServiceAccount token in it
+      # (CIS 5.1.6).
+      automountServiceAccountToken: false
+      # Pod Security 'restricted' (00-namespaces.yaml): not root, no extra
+      # capabilities, no privilege escalation, the runtime's seccomp profile.
+      # nginx as its uid 101 (see the image's Dockerfile); it still listens on 80,
+      # which the pod allows by lowering the unprivileged port range (a safe
+      # sysctl). The root filesystem is read-only, /tmp (pid, temp files) an
+      # emptyDir.
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
         sysctls:
           - name: net.ipv4.ip_unprivileged_port_start
             value: "0"
@@ -155,6 +164,14 @@ spec:
       containers:
         - name: web
           image: registry.smdoes.eu/raspberry/dashboard-web:main-1795097547-c4b7435 # {"$imagepolicy": "flux-system:dashboard-web"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -172,6 +189,10 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
 ---
 apiVersion: v1
 kind: Service

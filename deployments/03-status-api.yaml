@@ -25,6 +25,9 @@ spec:
               app: status-api
       imagePullSecrets:
         - name: zot-registry
+      # No Kubernetes API calls from this pod, so no ServiceAccount token in it
+      # (CIS 5.1.6).
+      automountServiceAccountToken: false
       # Pod Security 'restricted' (00-namespaces.yaml): not root, no extra
       # capabilities, no privilege escalation, the runtime's seccomp profile.
       # The image's user (appuser) by number, so the kubelet can check it.
