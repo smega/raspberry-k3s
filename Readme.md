@@ -64,6 +64,11 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   afterwards; the short versions are in the status page's incident log.
 - `flagger/` -- Flagger (canary releases through the Gateway API) and its
   load tester, which runs the canary checks; see "Canary releases" below.
+- `observability/` -- Loki, Tempo and Alloy: pod logs and traces from
+  status-api and the checker, shown in Grafana (see "Logs and traces").
+- `image-policies/` -- what the policy-controller requires of every own
+  image at admission: the CI signature, an SBOM and SLSA provenance.
+- `loadtest/` -- a k6 ramp test run as a Job, and its results.
 - `kured/` -- automatic, one-at-a-time node reboots after OS updates
   (Mon/Tue/Thu 03:00-06:00, never while an alert is firing).
 - `system-upgrade/` -- system-upgrade-controller and the Plans that keep
