@@ -18,7 +18,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: checker
-            image: registry.smdoes.eu/raspberry/status-checker:main-1794757058-e7bfbdd # {"$imagepolicy": "flux-system:status-checker"}
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795092762-632ca5e # {"$imagepolicy": "flux-system:status-checker"}
             imagePullPolicy: IfNotPresent
             env:
             - name: STATUS_NAMESPACE
@@ -30,10 +30,7 @@ spec:
             # Revert by deleting this env var once the domain is fixed.
             - name: STATUS_TARGETS_JSON
               value: >-
-                {"Personal site": "https://smega.eu", "Cluster dashboard": "https://cluster.smega.eu",
-                "Whoami demo": "https://whoami.smega.eu", "Developer tools": "https://tools.smega.eu",
-                "SEO Checker": "https://seo.smega.eu", "One-time Secret": "https://yaots.smega.eu",
-                "RunGuard": "https://runguard.smega.eu"}
+                {"Personal site": "https://smega.eu", "Cluster dashboard": "https://cluster.smega.eu", "Whoami demo": "https://whoami.smega.eu", "Developer tools": "https://tools.smega.eu", "SEO Checker": "https://seo.smega.eu", "One-time Secret": "https://yaots.smega.eu", "RunGuard": "https://runguard.smega.eu"}
             # Public RunGuard pages of the VPS-side watchers; Secret made by
             # hand (not in this public repo), optional so the checker still
             # runs without it.
