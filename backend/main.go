@@ -16,7 +16,9 @@ func main() {
 		dataFile = "/data/status-data.json"
 	}
 
-	router := gin.Default()
+	initTracing()
+	router := gin.New()
+	router.Use(gin.Recovery(), tracing(), requestLog())
 
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -75,10 +77,10 @@ func main() {
 	if promURL == "" {
 		promURL = "http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090"
 	}
-	prom := &promClient{base: promURL, http: &http.Client{Timeout: 5 * time.Second}}
+	prom := &promClient{base: promURL, http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}}
 	nodes := &nodesCache{prom: prom}
 	release := &releaseCache{prom: prom}
-	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second}, known: map[string]int64{}}}
+	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}, known: map[string]int64{}}}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
 		resp, err := nodes.get(c.Request.Context())

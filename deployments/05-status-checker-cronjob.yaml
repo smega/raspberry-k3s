@@ -37,6 +37,11 @@ spec:
             env:
             - name: STATUS_NAMESPACE
               value: public-demo
+            # Traces to Alloy (observability/): one trace per run.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://alloy.observability.svc:4318
+            - name: OTEL_SERVICE_NAME
+              value: status-checker
             - name: STATUS_CONFIGMAP_NAME
               value: status-data
             # Temporary override (2026-11-17): drops "Nevnap API" from the

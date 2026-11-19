@@ -5,6 +5,35 @@ from datetime import datetime, timezone
 import requests
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+# One trace per run: a span for the run, one per site, and the HTTP request
+# under it (requests instrumentation). Exported to Alloy (observability/)
+# only when OTEL_EXPORTER_OTLP_ENDPOINT is set; otherwise the tracer is a
+# no-op. A failed check's log line carries the trace id, so Grafana can go
+# from that line to the trace.
+tracer = trace.get_tracer("status-checker")
+
+
+def init_tracing():
+    if not os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        return None
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.requests import RequestsInstrumentor
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    provider = TracerProvider()  # service.name from OTEL_SERVICE_NAME
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    trace.set_tracer_provider(provider)
+    RequestsInstrumentor().instrument()
+    return provider
+
+
+def trace_suffix():
+    ctx = trace.get_current_span().get_span_context()
+    return f" trace_id={ctx.trace_id:032x}" if ctx.is_valid else ""
 
 NAMESPACE = os.getenv("STATUS_NAMESPACE", "public-demo")
 CONFIGMAP_NAME = os.getenv("STATUS_CONFIGMAP_NAME", "status-data")
@@ -74,7 +103,7 @@ def load_targets():
     return DEFAULT_TARGETS
 
 
-def check_one(name, url):
+def _check_one(name, url):
     checked_at = datetime.now(timezone.utc).isoformat()
     started = datetime.now(timezone.utc)
     try:
@@ -102,7 +131,7 @@ def check_one(name, url):
             error = f"{error} ({type(reason).__name__})"
 
     if error:
-        print(f"{name}: down ({error}, {latency_ms} ms)", flush=True)
+        print(f"{name}: down ({error}, {latency_ms} ms){trace_suffix()}", flush=True)
 
     result = {
         "name": name,
@@ -115,6 +144,15 @@ def check_one(name, url):
     if error:
         result["error"] = error
     return result
+
+
+def check_one(name, url):
+    with tracer.start_as_current_span(f"check {name}", attributes={"url.full": url}) as span:
+        result = _check_one(name, url)
+        span.set_attribute("check.ok", result["ok"])
+        if result.get("error"):
+            span.set_status(Status(StatusCode.ERROR, result["error"]))
+        return result
 
 
 def load_existing(v1):
@@ -237,6 +275,17 @@ def build_payload(existing, check=check_one):
 
 
 def main():
+    provider = init_tracing()
+    try:
+        with tracer.start_as_current_span("checker run"):
+            run()
+    finally:
+        # A Job's pod exits right after: send the spans before it does.
+        if provider:
+            provider.shutdown()
+
+
+def run():
     config.load_incluster_config()
     v1 = client.CoreV1Api()
 
@@ -246,12 +295,12 @@ def main():
     except CheckerOffline as e:
         # Not patching leaves generatedAt as it was, so if this keeps
         # happening StatusCheckerStale fires instead of fake outages.
-        print(f"no target answered at all, assuming this pod's network is down; run not recorded ({e})")
+        print(f"no target answered at all, assuming this pod's network is down; run not recorded ({e}){trace_suffix()}")
         return
 
     body = {"data": {"status-data.json": json.dumps(payload, indent=2)}}
     v1.patch_namespaced_config_map(name=CONFIGMAP_NAME, namespace=NAMESPACE, body=body)
-    print(f"patched ConfigMap {NAMESPACE}/{CONFIGMAP_NAME} with {len(payload['services'])} services")
+    print(f"patched ConfigMap {NAMESPACE}/{CONFIGMAP_NAME} with {len(payload['services'])} services{trace_suffix()}")
 
 
 if __name__ == "__main__":

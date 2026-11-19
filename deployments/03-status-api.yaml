@@ -49,6 +49,11 @@ spec:
           env:
             - name: STATUS_DATA_FILE
               value: /data/status-data.json
+            # Traces to Alloy (observability/), see backend/tracing.go.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://alloy.observability.svc:4318
+            - name: OTEL_SERVICE_NAME
+              value: status-api
             # Source for /api/nodes (live per-Pi temp/CPU/memory). Fixed
             # queries only, see backend/nodes.go.
             - name: PROMETHEUS_URL
