@@ -18,6 +18,7 @@ spec:
           labels:
             severity: warning
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/CanaryRolledBack.md
             summary: "Canary {{ $labels.namespace }}/{{ $labels.name }} failed its checks and was rolled back"
             description: >-
               The new version never got more than the canary share of the
@@ -31,6 +32,7 @@ spec:
           labels:
             severity: warning
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/CanaryStuck.md
             summary: "Canary {{ $labels.namespace }}/{{ $labels.name }} has been progressing for 20 minutes"
             description: >-
               A release normally takes about 3 minutes. Flagger may be

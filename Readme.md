@@ -54,6 +54,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   different Pis.
 - `content/` -- text the status page loads at runtime (the incident log),
   served from a ConfigMap: a new entry is a commit, no image build.
+- `runbooks/` -- one page per alert defined here (what fired, impact,
+  how to check, how to fix, history); each rule links its page in
+  `runbook_url`.
 - `postmortems/` -- blameless write-ups of what went wrong and what changed
   afterwards; the short versions are in the status page's incident log.
 - `flagger/` -- Flagger (canary releases through the Gateway API) and its

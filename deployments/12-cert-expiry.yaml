@@ -76,6 +76,7 @@ spec:
           labels:
             severity: warning
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/CertificateExpiresSoon.md
             summary: "TLS certificate of {{ $labels.instance }} expires in {{ $value | printf \"%.0f\" }} days"
             description: >-
               The certificate served at {{ $labels.instance }} ({{ $labels.job }})
@@ -89,6 +90,7 @@ spec:
           labels:
             severity: critical
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/CertificateExpiresVerySoon.md
             summary: "TLS certificate of {{ $labels.instance }} expires in {{ $value | printf \"%.1f\" }} days"
             description: >-
               The certificate served at {{ $labels.instance }} ({{ $labels.job }})
@@ -100,6 +102,7 @@ spec:
           labels:
             severity: warning
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TLSProbeFailing.md
             summary: "TLS handshake with {{ $labels.instance }} is failing"
             description: >-
               The blackbox exporter can't complete a TLS handshake with

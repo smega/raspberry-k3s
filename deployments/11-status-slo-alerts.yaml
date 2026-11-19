@@ -74,6 +74,7 @@ spec:
           labels:
             severity: critical
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/StatusSLOFastBurn.md
             summary: "{{ $labels.service }} is burning its error budget fast"
             description: >-
               {{ $labels.service }} is failing checks fast enough to use up a
@@ -89,6 +90,7 @@ spec:
           labels:
             severity: warning
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/StatusSLOSlowBurn.md
             summary: "{{ $labels.service }} is slowly eating its error budget"
             description: >-
               {{ $labels.service }} has been failing often enough over the last
@@ -104,6 +106,7 @@ spec:
           labels:
             severity: critical
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/StatusCheckerStale.md
             summary: "The status checker has not run for {{ $value | humanizeDuration }}"
             description: >-
               The status-checker CronJob (every 5 minutes) has not written new
@@ -116,6 +119,7 @@ spec:
           labels:
             severity: critical
           annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/StatusMetricsMissing.md
             summary: "No status metrics from status-api"
             description: >-
               Prometheus gets no readable status data from status-api

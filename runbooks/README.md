@@ -1,0 +1,26 @@
+# Runbooks
+
+One page per alert defined in this repo. Every rule links its page in the
+`runbook_url` annotation, and the phone notification (ntfy) carries the
+link, so an alert arrives with "what now" attached.
+
+Each page: what fired, what it means for visitors, how to check, how to
+fix, and what happened the last times.
+
+| Alert | Severity | Rule |
+|---|---|---|
+| [StatusSLOFastBurn](StatusSLOFastBurn.md) | critical | `deployments/11-status-slo-alerts.yaml` |
+| [StatusSLOSlowBurn](StatusSLOSlowBurn.md) | warning | `deployments/11-status-slo-alerts.yaml` |
+| [StatusCheckerStale](StatusCheckerStale.md) | critical | `deployments/11-status-slo-alerts.yaml` |
+| [StatusMetricsMissing](StatusMetricsMissing.md) | critical | `deployments/11-status-slo-alerts.yaml` |
+| [CertificateExpiresSoon](CertificateExpiresSoon.md) | warning | `deployments/12-cert-expiry.yaml` |
+| [CertificateExpiresVerySoon](CertificateExpiresVerySoon.md) | critical | `deployments/12-cert-expiry.yaml` |
+| [TLSProbeFailing](TLSProbeFailing.md) | warning | `deployments/12-cert-expiry.yaml` |
+| [CanaryRolledBack](CanaryRolledBack.md) | warning | `flagger/alerts.yaml` |
+| [CanaryStuck](CanaryStuck.md) | warning | `flagger/alerts.yaml` |
+
+The kube-prometheus-stack alerts (node, kubelet, Prometheus itself...)
+come with their own `runbook_url`, pointing at
+[runbooks.prometheus-operator.dev](https://runbooks.prometheus-operator.dev/).
+
+A new alert gets a page here in the same commit.
