@@ -1,0 +1,45 @@
+# Tempo, one process, traces on a local volume, kept 24 hours. Receives
+# OTLP only, from Alloy (alloy-values.yaml), which the apps send to.
+tempo:
+  reportingEnabled: false
+  retention: 24h
+  receivers:
+    jaeger: null
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+  resources:
+    requests:
+      cpu: 30m
+      memory: 128Mi
+    limits:
+      memory: 320Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+securityContext:
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 3Gi
+# Same nodes as Loki: not kube-master (memory) or kube-slave2 (SD card).
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [kube-slave1, kube-slave3]

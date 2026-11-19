@@ -1,0 +1,30 @@
+# Logs and traces, applied by Flux (clusters/home/observability.yaml):
+# Alloy collects, Loki and Tempo store, the Grafana in monitoring/ shows
+# them (datasources in kube-prometheus-stack-values.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - helmrepositories.yaml
+  - loki.yaml
+  - tempo.yaml
+  - alloy.yaml
+configMapGenerator:
+  - name: loki-values
+    namespace: observability
+    files:
+      - values.yaml=loki-values.yaml
+  - name: tempo-values
+    namespace: observability
+    files:
+      - values.yaml=tempo-values.yaml
+  - name: alloy-values
+    namespace: observability
+    files:
+      - values.yaml=alloy-values.yaml
+generatorOptions:
+  # Fixed names (the HelmReleases refer to them), and the watch label so
+  # helm-controller upgrades as soon as a values file changes.
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled

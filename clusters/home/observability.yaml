@@ -1,0 +1,18 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: observability
+  namespace: flux-system
+spec:
+  # After monitoring: Grafana there gets the Loki and Tempo datasources.
+  dependsOn:
+    - name: monitoring
+  interval: 30m
+  retryInterval: 1m
+  path: ./observability
+  prune: true
+  wait: true
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

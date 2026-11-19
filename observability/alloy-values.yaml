@@ -1,0 +1,145 @@
+# Grafana Alloy, one pod (not a DaemonSet: 4 copies would cost ~300 MB on
+# the Pis for nothing). It does two jobs:
+# - logs: reads every pod's output through the Kubernetes API
+#   (loki.source.kubernetes), so no hostPath and no root, and sends it to
+#   Loki. A line with trace_id=<32 hex> gets that id as structured
+#   metadata, which Grafana turns into a link to the trace in Tempo;
+# - traces: receives OTLP from the apps (status-api, the checker) on 4317
+#   (gRPC) and 4318 (HTTP), batches it and forwards it to Tempo.
+controller:
+  type: deployment
+  replicas: 1
+  # Same nodes as Loki and Tempo.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values: [kube-slave1, kube-slave3]
+  volumes:
+    extra:
+      - name: tmp
+        emptyDir: {}
+global:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 473
+    runAsGroup: 473
+    fsGroup: 473
+    seccompProfile:
+      type: RuntimeDefault
+# Only what reading pod logs needs; the chart's default also reads every
+# Secret and ConfigMap in the cluster. (Its clusterRules, read-only nodes
+# and metrics, stay: the template can't render an empty list.)
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log", "namespaces"]
+      verbs: ["get", "list", "watch"]
+alloy:
+  stabilityLevel: generally-available
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  # Alloy's own working data (positions etc.); the root is read-only.
+  storagePath: /tmp/alloy
+  mounts:
+    extra:
+      - name: tmp
+        mountPath: /tmp
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  resources:
+    requests:
+      cpu: 30m
+      memory: 96Mi
+    limits:
+      memory: 256Mi
+  configMap:
+    content: |
+      // Logs: every pod's containers, labelled by namespace, pod,
+      // container and app.
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_pod_phase"]
+          regex         = "Pending|Failed|Unknown"
+          action        = "drop"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          regex         = "^;*([^;]+).*$"
+          target_label  = "app"
+        }
+      }
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.process.pods.receiver]
+      }
+      loki.process "pods" {
+        stage.regex {
+          expression = "trace_id=(?P<trace_id>[0-9a-f]{32})"
+        }
+        stage.structured_metadata {
+          values = { trace_id = "" }
+        }
+        forward_to = [loki.write.loki.receiver]
+      }
+      loki.write "loki" {
+        endpoint {
+          url = "http://loki.observability.svc:3100/loki/api/v1/push"
+        }
+      }
+
+      // Traces: OTLP in, batched, to Tempo.
+      otelcol.receiver.otlp "apps" {
+        grpc {
+          endpoint = "0.0.0.0:4317"
+        }
+        http {
+          endpoint = "0.0.0.0:4318"
+        }
+        output {
+          traces = [otelcol.processor.batch.traces.input]
+        }
+      }
+      otelcol.processor.batch "traces" {
+        output {
+          traces = [otelcol.exporter.otlp.tempo.input]
+        }
+      }
+      otelcol.exporter.otlp "tempo" {
+        client {
+          endpoint = "tempo.observability.svc:4317"
+          tls {
+            insecure = true
+          }
+        }
+      }

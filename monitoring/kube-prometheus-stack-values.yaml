@@ -43,6 +43,39 @@ grafana:
   service:
     type: NodePort
     nodePort: 31296
+  # Logs and traces (observability/). A log line's trace_id (structured
+  # metadata, set by Alloy) links to the trace; a trace links back to the
+  # lines that carry its id, 5 minutes either side. $$ keeps Grafana's
+  # provisioning from reading ${...} as an environment variable.
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      url: http://loki.observability.svc:3100
+      jsonData:
+        derivedFields:
+          - name: trace
+            matcherType: label
+            matcherRegex: trace_id
+            datasourceUid: tempo
+            url: "$${__value.raw}"
+            urlDisplayLabel: Trace
+    - name: Tempo
+      uid: tempo
+      type: tempo
+      url: http://tempo.observability.svc:3200
+      jsonData:
+        nodeGraph:
+          enabled: true
+        lokiSearch:
+          datasourceUid: loki
+        tracesToLogsV2:
+          datasourceUid: loki
+          spanStartTimeShift: -5m
+          spanEndTimeShift: 5m
+          customQuery: true
+          # Both traced apps (status-api, the checker) run in public-demo.
+          query: '{namespace="public-demo"} | trace_id="$${__trace.traceId}"'
 prometheus:
   ingress:
     enabled: false
