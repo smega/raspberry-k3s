@@ -75,13 +75,25 @@ func main() {
 	if promURL == "" {
 		promURL = "http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090"
 	}
-	nodes := &nodesCache{prom: &promClient{base: promURL, http: &http.Client{Timeout: 5 * time.Second}}}
+	prom := &promClient{base: promURL, http: &http.Client{Timeout: 5 * time.Second}}
+	nodes := &nodesCache{prom: prom}
+	release := &releaseCache{prom: prom}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
 		resp, err := nodes.get(c.Request.Context())
 		if err != nil {
 			log.Printf("could not collect node stats: %v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "node stats not available"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	router.GET("/api/release", func(c *gin.Context) {
+		resp, err := release.get(c.Request.Context())
+		if err != nil {
+			log.Printf("could not read the last release: %v", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "release info not available"})
 			return
 		}
 		c.JSON(http.StatusOK, resp)

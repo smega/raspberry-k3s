@@ -27,6 +27,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   unreachable. It only runs
   fixed queries, caches the answer for 15s, and labels nodes as
   "Pi #N - role" instead of exposing hostnames or IPs.
+  `/api/release` reports the last canary release of the status page
+  (promoted or rolled back, when, how long), read from Flagger's
+  `flagger_canary_status` series.
   `/badge/<service>.svg` serves a shields-style uptime badge per service
   (slug of its name, e.g. `personal-site`), for READMEs.
   On a separate, unrouted port (9100) it also exposes the checker's results
@@ -53,6 +56,8 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   served from a ConfigMap: a new entry is a commit, no image build.
 - `postmortems/` -- blameless write-ups of what went wrong and what changed
   afterwards; the short versions are in the status page's incident log.
+- `flagger/` -- Flagger (canary releases through the Gateway API) and its
+  load tester, which runs the canary checks; see "Canary releases" below.
 - `kured/` -- automatic, one-at-a-time node reboots after OS updates
   (Mon/Tue/Thu 03:00-06:00, never while an alert is firing).
 - `system-upgrade/` -- system-upgrade-controller and the Plans that keep
@@ -74,6 +79,7 @@ git push main
   -> Flux applies that commit like any other change
   -> policy-controller checks the signature when the pod is created
        (image-policies/: signed by build-image.yml on main, or a warning)
+  -> status-web only: Flagger releases it as a canary (below)
 ```
 
 No `:latest` anywhere: a tag is never moved, so every pod runs exactly the
@@ -83,6 +89,36 @@ tell Flux which line to update. smega/cluster-dashboard uses the same
 build workflow for its two images. Actions are pinned to commit SHAs;
 Renovate (`renovate.json`) proposes updates to them, to base images and to
 the Helm charts, never to the images Flux deploys.
+
+### Canary releases
+
+A new status-web image doesn't replace the running one. Flagger
+(`flagger/`, the Canary in `deployments/14-status-web-canary.yaml`) keeps
+the live version as `status-web-primary` and starts the new build next to
+it, then:
+
+```
+pre-rollout   smoke test against the canary alone, before any traffic
+every 30s     smoke test again + no container restarts (Prometheus),
+              then +10% of the traffic (HTTPRoute backend weights, Kong)
+at 50%        promote: the primary gets the new version, canary to zero
+3 failures    roll back: all traffic to the primary, CanaryRolledBack alert
+```
+
+About 4 minutes either way. The smoke test fetches the page, the JS bundle
+it references and the incident log JSON from the canary Service. The gate
+is synthetic on purpose: Kong builds one upstream from both weighted
+backends, so its metrics can't say which version answered, and 10% of
+this page's traffic is too few requests to judge. Flagger owns the
+`status-web` Services and HTTPRoute; the replica count is an HPA (min 2)
+so Flux doesn't fight Flagger's scaling; the incident log ConfigMap is
+left out of Flagger's config tracking, so text still updates in place.
+
+**Rollback test (2026-11-19):** a deliberately broken build (the page's
+root element renamed: the build passes, the page renders empty) failed
+the pre-rollout smoke test three times and was rolled back about 2
+minutes without getting a single request; a probe through Cloudflare
+every second saw 609 good pages and no errors through the whole test.
 
 ## Readonly dashboard: what it can and can't see
 

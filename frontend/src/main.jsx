@@ -773,7 +773,46 @@ function LastDeploy() {
   )
 }
 
-function HowItWorksSection() {
+// The last canary release (Flagger), from status-api's /api/release.
+function LastRelease({ apiBase }) {
+  const [rel, setRel] = useState(null)
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`${apiBase}/api/release`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setRel(d))
+        .catch(() => setRel(null))
+    }
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => clearInterval(interval)
+  }, [apiBase])
+
+  if (!rel || !rel.outcome) return null
+  const when = (t) => formatBuildTime(new Date(t * 1000).toISOString())
+  const mins = rel.durationSeconds != null ? Math.max(1, Math.round(rel.durationSeconds / 60)) : null
+  let text
+  if (rel.outcome === 'in progress') {
+    text = `Release in progress: the new version is a canary at ${rel.canaryWeight ?? 0}% of the traffic.`
+  } else if (rel.outcome === 'rolled back') {
+    text = `Last release attempt: failed its canary checks and was rolled back on ${when(rel.finishedAt)} after ${mins} min. The version above kept serving.`
+  } else {
+    text = `Last release: rolled out as a canary, promoted on ${when(rel.finishedAt)} after ${mins} min.`
+  }
+  const week =
+    rel.releases > 1
+      ? ` ${rel.releases} releases in the last ${rel.windowDays} days, ${rel.rolledBack} rolled back.`
+      : ''
+  return (
+    <div style={{ marginTop: '6px', fontSize: '12px', color: INK_MUTED }}>
+      {text}
+      {week}
+    </div>
+  )
+}
+
+function HowItWorksSection({ apiBase }) {
   const p = { margin: '0 0 12px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6 }
   return (
     <section style={{ marginTop: '48px' }}>
@@ -814,6 +853,13 @@ function HowItWorksSection() {
             (2026-11-18; reinstalling the Pis themselves not included). The first attempt never finished: three things
             existed only on the live cluster, and they are in git now.
           </p>
+          <p style={{ ...p, margin: '12px 0 0' }}>
+            <strong style={{ color: INK_PRIMARY }}>New versions go out as canaries.</strong> A new build of this page
+            starts next to the live one and gets checked before any visitor sees it, then takes 10% more of the traffic
+            every 30 seconds up to half, and only then replaces the old version (Flagger, about 4 minutes). If a check
+            fails three times, it is rolled back by itself. I tested that with a deliberately broken build: it never got
+            a single visitor (2026-11-19).
+          </p>
           <p style={{ ...p, margin: '16px 0 0' }}>
             Source code, manifests and the full setup:{' '}
             <a href="https://github.com/smega/raspberry-k3s" target="_blank" rel="noreferrer" style={{ color: INK_PRIMARY, fontWeight: 500 }}>
@@ -822,6 +868,7 @@ function HowItWorksSection() {
           </p>
         </div>
         <LastDeploy />
+        <LastRelease apiBase={apiBase} />
       </Card>
     </section>
   )
@@ -1183,7 +1230,7 @@ function ClusterView({ apiBase }) {
     <>
       <h1 style={{ fontSize: '28px', fontWeight: 600, margin: '0 0 10px', color: INK_PRIMARY }}>Raspberry Pi cluster</h1>
       <NodesSection apiBase={apiBase} />
-      <HowItWorksSection />
+      <HowItWorksSection apiBase={apiBase} />
     </>
   )
 }
