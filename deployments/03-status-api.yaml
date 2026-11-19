@@ -75,12 +75,14 @@ spec:
             preStop:
               sleep:
                 seconds: 10
+          # The CPU limit is what capped /api/status (loadtest/, 2026-11-19:
+          # ~100% throttled at 250m near 300 req/s, nodes at 52-81%), so 500m.
           resources:
             requests:
               cpu: 50m
               memory: 64Mi
             limits:
-              cpu: 250m
+              cpu: 500m
               memory: 128Mi
       volumes:
         - name: status-data
