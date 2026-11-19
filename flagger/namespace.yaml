@@ -1,0 +1,6 @@
+# No policy.sigstore.dev/include label: the cosign policy is for our own
+# images in the public namespaces; Flagger's come from ghcr.io/fluxcd.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flagger-system

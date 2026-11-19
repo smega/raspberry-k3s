@@ -13,6 +13,7 @@ spec:
   timeout: 10m
   dependsOn:
     - name: monitoring  # ServiceMonitor/Probe/PrometheusRule CRDs, blackbox
+    - name: flagger  # the Canary CRD (deployments/14-status-web-canary.yaml)
   sourceRef:
     kind: GitRepository
     name: flux-system

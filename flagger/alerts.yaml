@@ -1,0 +1,37 @@
+# A rolled-back release is worth knowing about even though nothing broke for
+# visitors (the old version kept serving): the new image is in git and
+# would be tried again on the next push.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: flagger
+  namespace: flagger-system
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: flagger
+      rules:
+        - alert: CanaryRolledBack
+          # flagger_canary_status: 0 progressing, 1 promoted/idle, 2 failed
+          expr: max by (namespace, name) (flagger_canary_status) == 2
+          labels:
+            severity: warning
+          annotations:
+            summary: "Canary {{ $labels.namespace }}/{{ $labels.name }} failed its checks and was rolled back"
+            description: >-
+              The new version never got more than the canary share of the
+              traffic and is scaled to zero again; the previous version
+              (the -primary Deployment) is serving. kubectl -n
+              {{ $labels.namespace }} describe canary {{ $labels.name }}
+              shows which check failed.
+        - alert: CanaryStuck
+          expr: max by (namespace, name) (flagger_canary_status) == 0
+          for: 20m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Canary {{ $labels.namespace }}/{{ $labels.name }} has been progressing for 20 minutes"
+            description: >-
+              A release normally takes about 3 minutes. Flagger may be
+              waiting on a Deployment that never gets ready.

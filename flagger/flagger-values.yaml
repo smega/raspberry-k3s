@@ -1,0 +1,17 @@
+# Traffic shifting through the Gateway API: Flagger rewrites the weights of
+# the backendRefs in the app's HTTPRoute, and Kong (the only Gateway
+# implementation here) splits the traffic.
+meshProvider: gatewayapi:v1
+metricsServer: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+# flagger_canary_status etc. for the alert in alerts.yaml.
+podMonitor:
+  enabled: true
+  additionalLabels:
+    release: grafana
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi

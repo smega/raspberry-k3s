@@ -1,0 +1,25 @@
+# Flagger (progressive delivery) and its load tester, applied by Flux
+# (clusters/home/flagger.yaml). The Canary objects live next to the apps
+# they release (deployments/14-status-web-canary.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - flagger.yaml
+  - loadtester.yaml
+  - alerts.yaml
+configMapGenerator:
+  - name: flagger-values
+    namespace: flagger-system
+    files:
+      - values.yaml=flagger-values.yaml
+  - name: loadtester-values
+    namespace: flagger-system
+    files:
+      - values.yaml=loadtester-values.yaml
+generatorOptions:
+  # Fixed names (the HelmReleases refer to them), and the watch label so
+  # helm-controller upgrades as soon as a values file changes.
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
