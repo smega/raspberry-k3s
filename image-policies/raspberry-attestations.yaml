@@ -1,0 +1,37 @@
+# Next to the signature (raspberry-images.yaml), every
+# registry.smdoes.eu/raspberry/** image in a watched namespace must carry
+# two attestations from the same CI identity (build-image.yml):
+# - an SBOM (SPDX JSON, syft), so "what's in that image" has an answer
+#   for any digest that is running;
+# - SLSA v1 provenance whose builder is that workflow on main, so an image
+#   built anywhere else (or by hand) and then signed would still fail.
+# Both are written by the build job itself (SLSA Build L2, not L3).
+#
+# warn first, enforce once every running image passes, the same way the
+# signature policy went.
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: raspberry-attestations
+spec:
+  mode: warn
+  images:
+    - glob: "registry.smdoes.eu/raspberry/**"
+  authorities:
+    - keyless:
+        url: https://fulcio.sigstore.dev
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subject: https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main
+      ctlog:
+        url: https://rekor.sigstore.dev
+      attestations:
+        - name: sbom
+          predicateType: https://spdx.dev/Document
+        - name: provenance
+          predicateType: https://slsa.dev/provenance/v1
+          policy:
+            type: cue
+            data: |
+              predicateType: "https://slsa.dev/provenance/v1"
+              predicate: runDetails: builder: id: "https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/heads/main"
