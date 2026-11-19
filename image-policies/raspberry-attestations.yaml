@@ -7,14 +7,16 @@
 #   built anywhere else (or by hand) and then signed would still fail.
 # Both are written by the build job itself (SLSA Build L2, not L3).
 #
-# warn first, enforce once every running image passes, the same way the
-# signature policy went.
+# mode: enforce since 2026-11-19, after warn mode and a server-side dry-run
+# of every running image passed (and an image from before the
+# attestations got "no matching attestations"). An image built before
+# 2026-11-19 14:30 UTC can't be rolled back to any more; rebuild it.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
   name: raspberry-attestations
 spec:
-  mode: warn
+  mode: enforce
   images:
     - glob: "registry.smdoes.eu/raspberry/**"
   authorities:
