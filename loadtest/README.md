@@ -50,6 +50,32 @@ over in seconds (p95 4.2 s, 0.5% failed, stopped after ~30 s at about 650
 req/s served): the HPA needs the ramp to scale before the load arrives. It
 measures CPU against the request (30m), so under load it reads "500%".
 
+### After the fixes (same day)
+
+status-web's CPU limit 150m -> 300m and up to 4 replicas (542824e);
+/api/status served from memory and gzipped when asked (1dd08a2).
+
+| status page, req/s | p95 ms | p99 ms | failed |
+|---|---|---|---|
+| 600 | 7 | 12 | 0 |
+| 1000 | 69 | 178 | 0 |
+| 1200 | 140 | 285 | 0 |
+| 1600 (1503 served) | 332 | 509 | 0 |
+| 2000 (1529 served) | 612 | 930 | 0 |
+
+| /api/status, req/s | p95 ms | p99 ms | failed |
+|---|---|---|---|
+| 100 | 8 | 12 | 0 |
+| 200 | 22 | 68 | 0 (was p95 717) |
+| 300 | 183 | 291 | 0 (was 4.8% failed) |
+| 400 (~290 served) | 2838 | 3871 | 0, stopped |
+
+The status page now tops out near 1500 req/s without an error. The API
+went about 2x, but k6 didn't ask for gzip (11 GB for 57k requests), so
+that's the cache alone; visitors through Cloudflare get the 17 KB gzipped
+response. Its pods are at their 250m limit again, ~100% throttled, with
+the nodes at 52-81%.
+
 Caveats: one run per target, the load generator on a node of the same
 cluster (its CPU counts on kube-slave3), compressed responses discarded,
 and nothing in front of Kong; through the VPS and Cloudflare the numbers
