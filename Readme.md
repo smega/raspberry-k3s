@@ -116,7 +116,7 @@ left out of Flagger's config tracking, so text still updates in place.
 
 **Rollback test (2026-11-19):** a deliberately broken build (the page's
 root element renamed: the build passes, the page renders empty) failed
-the pre-rollout smoke test three times and was rolled back about 2
+the pre-rollout smoke test three times and was rolled back after about 2
 minutes without getting a single request; a probe through Cloudflare
 every second saw 609 good pages and no errors through the whole test.
 
