@@ -61,6 +61,11 @@ gateway:
       servicePort: 8444
   env:
     database: "off"
+    # Entity cache (kong_db_cache and kong_core_db_cache), 128m each by
+    # default; DB-less Kong keeps its config elsewhere, and this cluster
+    # has a dozen routes. Each gateway used 300-390 MiB on every Pi
+    # (2026-11-19).
+    mem_cache_size: "32m"
   manager:
     enabled: false
   portal:
