@@ -163,7 +163,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/dashboard-web:main-1795097547-c4b7435 # {"$imagepolicy": "flux-system:dashboard-web"}
+          image: registry.smdoes.eu/raspberry/dashboard-web:main-1795099065-c4b7435 # {"$imagepolicy": "flux-system:dashboard-web"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -192,7 +192,6 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-
 ---
 apiVersion: v1
 kind: Service
