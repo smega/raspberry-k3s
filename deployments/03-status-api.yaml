@@ -25,9 +25,23 @@ spec:
               app: status-api
       imagePullSecrets:
         - name: zot-registry
+      # Pod Security 'restricted' (00-namespaces.yaml): not root, no extra
+      # capabilities, no privilege escalation, the runtime's seccomp profile.
+      # The image's user (appuser) by number, so the kubelet can check it.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           image: registry.smdoes.eu/raspberry/status-api:main-1795092762-632ca5e # {"$imagepolicy": "flux-system:status-api"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
           imagePullPolicy: IfNotPresent
           env:
             - name: STATUS_DATA_FILE

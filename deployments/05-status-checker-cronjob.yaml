@@ -16,9 +16,23 @@ spec:
           - name: zot-registry
           serviceAccountName: status-checker-sa
           restartPolicy: OnFailure
+          # Pod Security 'restricted' (00-namespaces.yaml): not root, no extra
+          # capabilities, no privilege escalation, the runtime's seccomp profile.
+          # The image runs as root by default; it needs no user of its own.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
           containers:
           - name: checker
             image: registry.smdoes.eu/raspberry/status-checker:main-1795092762-632ca5e # {"$imagepolicy": "flux-system:status-checker"}
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+              readOnlyRootFilesystem: true
             imagePullPolicy: IfNotPresent
             env:
             - name: STATUS_NAMESPACE

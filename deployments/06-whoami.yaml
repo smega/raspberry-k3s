@@ -23,9 +23,27 @@ spec:
           labelSelector:
             matchLabels:
               app: whoami
+      # Pod Security 'restricted' (00-namespaces.yaml): not root, no extra
+      # capabilities, no privilege escalation, the runtime's seccomp profile.
+      # The image runs as root by default; as nobody it still binds port 80,
+      # because the pod lowers the unprivileged port range (a safe sysctl).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start
+            value: "0"
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: whoami
           image: traefik/whoami:v1.11.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 80
           # Keep serving for 10s after SIGTERM: Kong only drops this pod

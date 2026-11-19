@@ -48,9 +48,22 @@ spec:
       serviceAccountName: public-dashboard-sa
       imagePullSecrets:
         - name: zot-registry
+      # Pod Security 'restricted' (00-namespaces.yaml): not root, no extra
+      # capabilities, no privilege escalation, the runtime's seccomp profile.
+      # distroless runs as root by default; 65532 is its nonroot user.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backend
           image: registry.smdoes.eu/raspberry/dashboard-backend:main-1794725977-1e703d7 # {"$imagepolicy": "flux-system:dashboard-backend"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -130,6 +143,15 @@ spec:
               app: dashboard-web
       imagePullSecrets:
         - name: zot-registry
+      # Step 1 of moving nginx off root: the port sysctl and seccomp now, so the
+      # unprivileged image (uid 101, still on port 80) can start here; runAsNonRoot
+      # and the rest follow once it is deployed.
+      securityContext:
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start
+            value: "0"
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: web
           image: registry.smdoes.eu/raspberry/dashboard-web:main-1794725978-1e703d7 # {"$imagepolicy": "flux-system:dashboard-web"}

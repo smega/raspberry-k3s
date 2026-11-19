@@ -28,6 +28,15 @@ spec:
               app: status-web
       imagePullSecrets:
         - name: zot-registry
+      # Step 1 of moving nginx off root: the port sysctl and seccomp now, so the
+      # unprivileged image (uid 101, still on port 80) can start here; runAsNonRoot
+      # and the rest follow once it is deployed.
+      securityContext:
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start
+            value: "0"
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: web
           image: registry.smdoes.eu/raspberry/status-web:main-1795082634-462e27f # {"$imagepolicy": "flux-system:status-web"}
