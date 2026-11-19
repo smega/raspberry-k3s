@@ -6,6 +6,10 @@ metadata:
     expose-via-public-gateway: "true"
     # Image signatures checked by the policy-controller (image-policies/).
     policy.sigstore.dev/include: "true"
+    # Pod Security Admission: pods that run as root, add capabilities,
+    # mount host paths or skip seccomp are refused here.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
 ---
 apiVersion: v1
 kind: Namespace
@@ -15,3 +19,7 @@ metadata:
     expose-via-public-gateway: "true"
     # Image signatures checked by the policy-controller (image-policies/).
     policy.sigstore.dev/include: "true"
+    # Pod Security Admission: pods that run as root, add capabilities,
+    # mount host paths or skip seccomp are refused here.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
