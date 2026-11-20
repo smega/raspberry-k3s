@@ -483,8 +483,8 @@ const DIAGRAM_COLS = [10, 200, 390, 590]
 const BOX_W = 160
 const BOX_H = 46
 
-function DiagramBox({ col, y, title, sub }) {
-  const x = DIAGRAM_COLS[col]
+function DiagramBox({ col, x: xAt, y, title, sub }) {
+  const x = xAt ?? DIAGRAM_COLS[col]
   return (
     <g>
       <rect x={x} y={y} width={BOX_W} height={BOX_H} rx="8" fill={SURFACE} stroke={INK_MUTED} stroke-width="1" />
@@ -498,10 +498,10 @@ function DiagramBox({ col, y, title, sub }) {
   )
 }
 
-function DiagramArrow({ x1, y1, x2, y2, label, lx, ly, anchor = 'middle' }) {
+function DiagramArrow({ x1, y1, x2, y2, label, lx, ly, anchor = 'middle', marker = 'arrow' }) {
   return (
     <g>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={INK_SECONDARY} stroke-width="1.2" marker-end="url(#arrow)" />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={INK_SECONDARY} stroke-width="1.2" marker-end={`url(#${marker})`} />
       {label && (
         <text x={lx} y={ly} text-anchor={anchor} font-size="11" fill={INK_MUTED}>
           {label}
@@ -511,25 +511,32 @@ function DiagramArrow({ x1, y1, x2, y2, label, lx, ly, anchor = 'middle' }) {
   )
 }
 
+function ArrowMarker({ id }) {
+  return (
+    <marker id={id} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill={INK_SECONDARY} />
+    </marker>
+  )
+}
+
+// Box edges, for readable arrow coordinates.
+const boxCx = (col) => DIAGRAM_COLS[col] + BOX_W / 2
+const boxRight = (col) => DIAGRAM_COLS[col] + BOX_W
+const boxLeft = (col) => DIAGRAM_COLS[col]
+
 function ArchitectureDiagram() {
-  // Box edges, for readable arrow coordinates.
-  const cx = (col) => DIAGRAM_COLS[col] + BOX_W / 2
-  const right = (col) => DIAGRAM_COLS[col] + BOX_W
-  const left = (col) => DIAGRAM_COLS[col]
-  const ROW = [20, 125, 215, 305, 390]
+  const ROW = [20, 125, 215, 305, 390, 485]
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <svg
-        viewBox="0 0 760 450"
+        viewBox="0 0 760 545"
         role="img"
-        aria-label="Architecture: browser to Cloudflare to nginx on a VPS, over Tailscale to Kong on the k3s cluster, which routes to status-web and status-api. A CronJob writes check results into a ConfigMap mounted by status-api; Prometheus feeds the node readings."
+        aria-label="Architecture: browser to Cloudflare to nginx on a VPS, over Tailscale to a Kong gateway on each of the four Pis, which routes to status-web and status-api. A CronJob checks the public services and writes the results into a ConfigMap mounted by status-api. Prometheus scrapes the API's metrics and the node exporters, answers the API's queries for the node readings, and sends alerts to two Alertmanagers, which notify a phone and send a constant heartbeat to RunGuard outside the cluster."
         style={{ width: '100%', minWidth: '640px', display: 'block' }}
       >
         <defs>
-          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill={INK_SECONDARY} />
-          </marker>
+          <ArrowMarker id="arrow" />
         </defs>
 
         {/* Cluster boundary */}
@@ -541,29 +548,79 @@ function ArchitectureDiagram() {
         <DiagramBox col={0} y={ROW[0]} title="Browser" sub="you" />
         <DiagramBox col={1} y={ROW[0]} title="Cloudflare" sub="DNS, TLS, cache" />
         <DiagramBox col={2} y={ROW[0]} title="nginx" sub="on a small VPS" />
-        <DiagramArrow x1={right(0)} y1={ROW[0] + 23} x2={left(1)} y2={ROW[0] + 23} />
-        <DiagramArrow x1={right(1)} y1={ROW[0] + 23} x2={left(2)} y2={ROW[0] + 23} />
+        <DiagramArrow x1={boxRight(0)} y1={ROW[0] + 23} x2={boxLeft(1)} y2={ROW[0] + 23} />
+        <DiagramArrow x1={boxRight(1)} y1={ROW[0] + 23} x2={boxLeft(2)} y2={ROW[0] + 23} />
 
-        <DiagramBox col={2} y={ROW[1]} title="Kong" sub="Gateway API" />
-        <DiagramArrow x1={cx(2)} y1={ROW[0] + BOX_H} x2={cx(2)} y2={ROW[1]} label="Tailscale" lx={cx(2) + 8} ly={ROW[0] + 72} anchor="start" />
+        <DiagramBox col={2} y={ROW[1]} title="Kong" sub="Gateway API · one per Pi" />
+        <DiagramArrow x1={boxCx(2)} y1={ROW[0] + BOX_H} x2={boxCx(2)} y2={ROW[1]} label="Tailscale · all 4 Pis" lx={boxCx(2) + 8} ly={ROW[0] + 72} anchor="start" />
 
         <DiagramBox col={1} y={ROW[2]} title="status-web" sub="Preact · status.smega.eu" />
         <DiagramBox col={3} y={ROW[2]} title="status-api" sub="Go · api-status.smega.eu" />
-        <DiagramArrow x1={left(2) + 20} y1={ROW[1] + BOX_H} x2={cx(1) + 30} y2={ROW[2]} />
-        <DiagramArrow x1={right(2) - 20} y1={ROW[1] + BOX_H} x2={cx(3) - 30} y2={ROW[2]} />
+        <DiagramArrow x1={boxLeft(2) + 20} y1={ROW[1] + BOX_H} x2={boxCx(1) + 30} y2={ROW[2]} />
+        <DiagramArrow x1={boxRight(2) - 20} y1={ROW[1] + BOX_H} x2={boxCx(3) - 30} y2={ROW[2]} />
 
-        <DiagramBox col={0} y={ROW[3]} title="8 public services" sub="checked every 5 min" />
+        <DiagramBox col={0} y={ROW[3]} title="Public services" sub="checked every 5 min" />
         <DiagramBox col={1} y={ROW[3]} title="status-checker" sub="CronJob, Python" />
-        <DiagramBox col={2} y={ROW[3]} title="ConfigMap" sub="last 24h of results" />
+        <DiagramBox col={2} y={ROW[3]} title="ConfigMap" sub="24 hours + 30 days" />
         <DiagramBox col={3} y={ROW[3]} title="Prometheus" sub="kube-prometheus-stack" />
-        <DiagramArrow x1={left(1)} y1={ROW[3] + 23} x2={right(0)} y2={ROW[3] + 23} />
-        <DiagramArrow x1={right(1)} y1={ROW[3] + 23} x2={left(2)} y2={ROW[3] + 23} />
-        <DiagramArrow x1={right(2) - 20} y1={ROW[3]} x2={left(3) + 20} y2={ROW[2] + BOX_H} label="mounted" lx={right(2) + 6} ly={ROW[3] - 22} anchor="middle" />
-        <DiagramArrow x1={cx(3)} y1={ROW[3]} x2={cx(3)} y2={ROW[2] + BOX_H} label="PromQL" lx={cx(3) + 8} ly={ROW[3] - 18} anchor="start" />
+        <DiagramArrow x1={boxLeft(1)} y1={ROW[3] + 23} x2={boxRight(0)} y2={ROW[3] + 23} />
+        <DiagramArrow x1={boxRight(1)} y1={ROW[3] + 23} x2={boxLeft(2)} y2={ROW[3] + 23} />
+        <DiagramArrow x1={boxRight(2) - 20} y1={ROW[3]} x2={boxLeft(3) + 15} y2={ROW[2] + BOX_H} label="mounted" lx={boxRight(2) - 2} ly={ROW[3] - 22} anchor="middle" />
+        <DiagramArrow x1={boxCx(3) - 30} y1={ROW[2] + BOX_H} x2={boxCx(3) - 30} y2={ROW[3]} label="metrics" lx={boxCx(3) - 36} ly={ROW[3] - 18} anchor="end" />
+        <DiagramArrow x1={boxCx(3) + 30} y1={ROW[3]} x2={boxCx(3) + 30} y2={ROW[2] + BOX_H} label="PromQL" lx={boxCx(3) + 36} ly={ROW[3] - 18} anchor="start" />
 
         <DiagramBox col={1} y={ROW[4]} title="pi-temp-led" sub="LED shows CPU load" />
+        <DiagramBox col={2} y={ROW[4]} title="Alertmanager" sub="× 2, on different Pis" />
         <DiagramBox col={3} y={ROW[4]} title="node-exporter" sub="+ kube-state-metrics" />
-        <DiagramArrow x1={cx(3)} y1={ROW[4]} x2={cx(3)} y2={ROW[3] + BOX_H} label="scrape" lx={cx(3) + 8} ly={ROW[4] - 18} anchor="start" />
+        <DiagramArrow x1={boxCx(3)} y1={ROW[4]} x2={boxCx(3)} y2={ROW[3] + BOX_H} label="scrape" lx={boxCx(3) + 8} ly={ROW[4] - 18} anchor="start" />
+        <DiagramArrow x1={boxLeft(3) + 15} y1={ROW[3] + BOX_H} x2={boxRight(2) - 15} y2={ROW[4]} label="alerts" lx={boxLeft(3) + 22} ly={ROW[4] - 14} anchor="start" />
+
+        {/* Outside the cluster: where alerts end up */}
+        <DiagramBox col={1} y={ROW[5]} title="My phone" sub="ntfy push" />
+        <DiagramBox col={2} y={ROW[5]} title="RunGuard" sub="on the VPS, outside k3s" />
+        <DiagramArrow x1={boxLeft(2) + 20} y1={ROW[4] + BOX_H} x2={boxCx(1) + 30} y2={ROW[5]} label="alerts" lx={boxLeft(2) - 44} ly={ROW[4] + 66} anchor="end" />
+        <DiagramArrow x1={boxCx(2) + 20} y1={ROW[4] + BOX_H} x2={boxCx(2) + 20} y2={ROW[5]} label="heartbeat" lx={boxCx(2) + 28} ly={ROW[4] + 70} anchor="start" />
+      </svg>
+    </div>
+  )
+}
+
+// How a new version of this page reaches visitors: CI, the registry, Flux
+// and Flagger. Same boxes as the architecture diagram, three columns.
+function DeployDiagram() {
+  // Wider gaps than the architecture diagram, so the arrow labels fit.
+  const COL = [10, 230, 450]
+  const ROW = [10, 130]
+  const dCx = (c) => COL[c] + BOX_W / 2
+  const dRight = (c) => COL[c] + BOX_W
+  const dLeft = (c) => COL[c]
+  const A = (props) => <DiagramArrow marker="arrow-deploy" {...props} />
+
+  return (
+    <div style={{ overflowX: 'auto', margin: '4px 0 16px' }}>
+      <svg
+        viewBox="0 0 620 190"
+        role="img"
+        aria-label="Deployment: a push to the GitHub repo starts GitHub Actions, which builds the arm64 image, scans it and pushes it signed to a private registry. Flux sees the new tag, writes it into the repo and applies the repo to the cluster. Flagger starts the new version as a canary and moves traffic to it in steps; the cluster only runs images whose signature it can verify."
+        style={{ width: '100%', minWidth: '520px', maxWidth: '680px', display: 'block' }}
+      >
+        <defs>
+          <ArrowMarker id="arrow-deploy" />
+        </defs>
+
+        <DiagramBox x={COL[0]} y={ROW[0]} title="GitHub repo" sub="code + manifests" />
+        <DiagramBox x={COL[1]} y={ROW[0]} title="GitHub Actions" sub="arm64 build, Trivy scan" />
+        <DiagramBox x={COL[2]} y={ROW[0]} title="Private registry" sub="signed image + SBOM" />
+        <A x1={dRight(0)} y1={ROW[0] + 23} x2={dLeft(1)} y2={ROW[0] + 23} label="push" lx={(dRight(0) + dLeft(1)) / 2} ly={ROW[0] + 15} />
+        <A x1={dRight(1)} y1={ROW[0] + 23} x2={dLeft(2)} y2={ROW[0] + 23} />
+
+        <DiagramBox x={COL[0]} y={ROW[1]} title="Flux" sub="applies the repo" />
+        <DiagramBox x={COL[1]} y={ROW[1]} title="Flagger" sub="canary, 10% → 50%" />
+        <DiagramBox x={COL[2]} y={ROW[1]} title="status-web" sub="signature checked" />
+        <A x1={dCx(0)} y1={ROW[0] + BOX_H} x2={dCx(0)} y2={ROW[1]} label="git" lx={dCx(0) + 8} ly={ROW[0] + 90} anchor="start" />
+        <A x1={dLeft(2) + 20} y1={ROW[0] + BOX_H} x2={dRight(0) - 10} y2={ROW[1]} label="new tag, written to git" lx={dCx(1) - 25} ly={ROW[0] + 66} />
+        <A x1={dRight(0)} y1={ROW[1] + 23} x2={dLeft(1)} y2={ROW[1] + 23} />
+        <A x1={dRight(1)} y1={ROW[1] + 23} x2={dLeft(2)} y2={ROW[1] + 23} label="promote" lx={(dRight(1) + dLeft(2)) / 2} ly={ROW[1] + 15} />
       </svg>
     </div>
   )
@@ -897,8 +954,9 @@ function HowItWorksSection({ apiBase }) {
         <div style={{ marginTop: '20px', maxWidth: '720px' }}>
           <p style={p}>
             <strong style={{ color: INK_PRIMARY }}>No database.</strong> A Python CronJob checks each service every 5
-            minutes and writes the last 24 hours of results into a ConfigMap. The Go API mounts that ConfigMap
-            read-only and serves it as-is, so there is nothing to back up or migrate.
+            minutes and writes the last 24 hours of results, plus a daily summary for the last 30 days, into a
+            ConfigMap. The Go API mounts that ConfigMap read-only and serves it from memory, so there is nothing to
+            back up or migrate.
           </p>
           <p style={p}>
             <strong style={{ color: INK_PRIMARY }}>No new agent for the node readings.</strong> The cluster already runs
@@ -908,18 +966,21 @@ function HowItWorksSection({ apiBase }) {
           <p style={p}>
             <strong style={{ color: INK_PRIMARY }}>Standard Kubernetes routing.</strong> Requests come through
             Cloudflare to nginx on a small VPS, then over Tailscale to Kong, which implements the Gateway API in front
-            of the apps. Images are built for arm64 and pulled from a private registry.
+            of the apps. Every Pi runs its own Kong gateway and nginx spreads requests over all four, so a Pi that
+            dies takes no requests down with it.
           </p>
           <p style={{ ...p, margin: 0 }}>
-            <strong style={{ color: INK_PRIMARY }}>Watched from inside and outside.</strong> Prometheus turns the
-            check results into SLO burn-rate alerts that go to my phone. A checker inside the cluster can't report
+            <strong style={{ color: INK_PRIMARY }}>Watched from inside and outside.</strong> Prometheus reads the
+            check results from the API and turns them into SLO burn-rate alerts, which two Alertmanagers on
+            different Pis send to my phone. A checker inside the cluster can't report
             the cluster being down, so a probe on the VPS tests the public path every 2 minutes, and Alertmanager
             sends a constant "still alive" heartbeat. Both report to{' '}
             <a href="https://runguard.smega.eu" target="_blank" rel="noreferrer" style={{ color: INK_PRIMARY }}>
               RunGuard
             </a>
             , my own heartbeat monitor, which runs outside the cluster and alerts when they stop. The cluster checks
-            the VPS in return.
+            the VPS in return. Logs and traces from the API and the checker go to Loki and Tempo, so a slow request
+            can be followed from its log line to its trace.
           </p>
           <p style={{ ...p, margin: '12px 0 0' }}>
             <strong style={{ color: INK_PRIMARY }}>Rebuilt from git in about 10 minutes.</strong> Flux applies this
@@ -928,7 +989,15 @@ function HowItWorksSection({ apiBase }) {
             (2026-11-18; reinstalling the Pis themselves not included). The first attempt never finished: three things
             existed only on the live cluster, and they are in git now.
           </p>
-          <p style={{ ...p, margin: '12px 0 0' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '24px 0 8px', color: INK_PRIMARY }}>How a new version gets here</h3>
+          <DeployDiagram />
+          <p style={{ ...p, margin: '0 0 12px' }}>
+            <strong style={{ color: INK_PRIMARY }}>Built, scanned and signed.</strong> GitHub Actions builds each
+            image for arm64, scans it with Trivy, where a fixable critical vulnerability stops the build, and pushes
+            it to a private registry with a signature and an SBOM. Flux notices the new tag, writes it into the repo and
+            applies it. The cluster refuses to run an image whose signature it can't verify.
+          </p>
+          <p style={{ ...p, margin: 0 }}>
             <strong style={{ color: INK_PRIMARY }}>New versions go out as canaries.</strong> A new build of this page
             starts next to the live one and gets checked before any visitor sees it, then takes 10% more of the traffic
             every 30 seconds up to half, and only then replaces the old version (Flagger, about 4 minutes). If a check
