@@ -53,16 +53,23 @@ func tracing() gin.HandlerFunc {
 	return otelgin.Middleware("status-api", otelgin.WithFilter(notHealthz))
 }
 
+// Requests slower than this are logged even when they succeed.
+const slowRequest = 250 * time.Millisecond
+
 // requestLog replaces gin's own logger: the same facts, plus the trace id,
-// which Alloy picks up so Grafana can link a log line to its trace.
+// which Alloy picks up so Grafana can link a log line to its trace. Only
+// errors (4xx/5xx) and slow requests are logged: a line per request cost
+// containerd, Alloy and Loki more CPU than the request itself under load
+// (loadtest/, 2026-11-19). Every request still has its trace in Tempo.
 func requestLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		if !notHealthz(c.Request) {
+		took := time.Since(start)
+		if !notHealthz(c.Request) || (c.Writer.Status() < 400 && took < slowRequest) {
 			return
 		}
-		line := []any{c.Writer.Status(), time.Since(start).Round(time.Microsecond), c.Request.Method, c.Request.URL.Path}
+		line := []any{c.Writer.Status(), took.Round(time.Microsecond), c.Request.Method, c.Request.URL.Path}
 		if sc := trace.SpanContextFromContext(c.Request.Context()); sc.HasTraceID() {
 			log.Printf("%d %v %s %s trace_id=%s", append(line, sc.TraceID())...)
 			return

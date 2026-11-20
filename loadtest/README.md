@@ -97,7 +97,8 @@ and Kong are all in the path; only Cloudflare isn't.
   tailscaled ~50% of a core, containerd ~33%, k3s-agent ~25%, Alloy ~25%,
   Kong ~17%. Tailscale's WireGuard runs in user space, and status-api's
   per-request log line (with the trace id) costs containerd, Alloy and
-  Loki work at that rate.
+  Loki work at that rate. Since 2026-11-20 it logs only failed and slow
+  requests.
 
 Caveats: one run per target, the load generator on a node of the same
 cluster (its CPU counts on kube-slave3), compressed responses discarded,

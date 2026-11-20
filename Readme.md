@@ -184,8 +184,8 @@ status-api, checker --(OTLP)-----> Alloy --> Tempo (24 h)
   `trace_id=<32 hex>` gets that id as structured metadata (not a label:
   one value per request).
 - **status-api** starts a span per request (not `/healthz`) and child
-  spans for its calls to Prometheus and GitHub; its request log line
-  carries the trace id. **The checker** makes one trace per run, a span
+  spans for its calls to Prometheus and GitHub; it logs only failed
+  (4xx/5xx) and slow (250 ms+) requests, each line with the trace id. **The checker** makes one trace per run, a span
   per site with the HTTP request under it; a failed check's line carries
   the trace id. Both export only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 - **Grafana** (`monitoring/kube-prometheus-stack-values.yaml`): a log line
