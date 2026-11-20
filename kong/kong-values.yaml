@@ -35,6 +35,16 @@ gateway:
   # so a drained node keeps serving until it actually reboots.
   deployment:
     daemonset: true
+  # Start the new gateway on a node before stopping the old one. With
+  # externalTrafficPolicy Local a node with no ready gateway drops packets
+  # to the NodePort silently, so the VPS nginx paid its 2s connect timeout
+  # on that node for 30-40s per gateway during every rollout (2026-11-19).
+  # No hostPort, so two gateways fit on one node for the overlap.
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   # ...except during maintenance: a node labelled smega.eu/maintenance loses
   # its gateway, so its NodePort stops answering and the VPS nginx moves on
   # after its 2s connect timeout, instead of waiting on a gateway that's
