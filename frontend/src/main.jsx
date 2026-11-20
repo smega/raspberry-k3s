@@ -1057,7 +1057,7 @@ function AuthorSection() {
             style={{ flex: '1 1 280px', maxWidth: '400px', minWidth: 0 }}
           >
             <div style={{ fontSize: '13px', color: INK_SECONDARY, marginBottom: '8px' }}>
-              A practical post every couple of weeks, no fluff.
+              A practical post every week, no fluff.
             </div>
             <input type="hidden" name="tag" value="status-page" />
             <div style={{ display: 'flex', gap: '8px' }}>
