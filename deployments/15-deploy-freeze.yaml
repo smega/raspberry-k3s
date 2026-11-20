@@ -1,0 +1,223 @@
+# Error budget policy: when a service this cluster serves has spent its
+# 30-day error budget, new image versions stop going out until it recovers.
+#
+#   decide   Prometheus: the DeployFreeze alert below, on the budget the
+#            checker computes ( status-api's
+#            status_service_error_budget_remaining_ratio, the same number
+#            the status page shows ).
+#   enforce  the deploy-freeze CronJob, every 5 minutes: while DeployFreeze
+#            fires it suspends Flux's image automation ( the "raspberry-k3s"
+#            ImageUpdateAutomation, which writes new tags into this repo );
+#            when it stops firing it resumes it.
+#
+# It only resumes a freeze it set itself ( annotation smega.eu/frozen-by ),
+# never a suspend made by hand. A hotfix still goes out: commit the image
+# tag by hand and Flux applies it like any other change. If Prometheus
+# can't be asked, nothing changes and the Job fails, so KubeJobFailed shows it.
+#
+# Only the services served from the cluster count: the others run on the
+# VPS, and their failures say nothing about this cluster's releases.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: deploy-freeze
+  namespace: public-demo
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: deploy-freeze
+      rules:
+        - alert: DeployFreeze
+          expr: |
+            min by (service) (
+              status_service_error_budget_remaining_ratio{service=~"Cluster dashboard|Whoami demo"}
+            ) <= 0
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/DeployFreeze.md
+            summary: "{{ $labels.service }} has spent its error budget: new versions are frozen"
+            description: >-
+              {{ $labels.service }} is out of its 30-day error budget ( SLO
+              99.5% ), so Flux's image automation is suspended until it
+              recovers. Hotfixes go out as a hand-made commit of the image tag.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deploy-freeze
+  namespace: public-demo
+automountServiceAccountToken: true
+---
+# Just enough to read and suspend/resume the one automation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deploy-freeze
+  namespace: flux-system
+rules:
+  - apiGroups: [image.toolkit.fluxcd.io]
+    resources: [imageupdateautomations]
+    resourceNames: [raspberry-k3s]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deploy-freeze
+  namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deploy-freeze
+subjects:
+  - kind: ServiceAccount
+    name: deploy-freeze
+    namespace: public-demo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deploy-freeze
+  namespace: public-demo
+data:
+  deploy_freeze.py: |
+    """Suspend or resume Flux's image automation from the DeployFreeze alert.
+
+    Standard library only: it runs on the status-checker image.
+    """
+    import datetime
+    import json
+    import os
+    import ssl
+    import sys
+    import urllib.parse
+    import urllib.request
+
+    PROMETHEUS = os.environ["PROMETHEUS_URL"]
+    QUERY = os.environ.get(
+        "FREEZE_QUERY", 'count(ALERTS{alertname="DeployFreeze",alertstate="firing"}) > 0'
+    )
+    NAMESPACE = "flux-system"
+    NAME = os.environ.get("AUTOMATION", "raspberry-k3s")
+    MARK = "smega.eu/frozen-by"
+    ME = "error-budget-policy"
+    SA = "/var/run/secrets/kubernetes.io/serviceaccount"
+    URL = (
+        "https://kubernetes.default.svc/apis/image.toolkit.fluxcd.io/v1"
+        f"/namespaces/{NAMESPACE}/imageupdateautomations/{NAME}"
+    )
+
+
+    def freeze_wanted():
+        q = urllib.parse.urlencode({"query": QUERY})
+        with urllib.request.urlopen(f"{PROMETHEUS}/api/v1/query?{q}", timeout=20) as r:
+            body = json.load(r)
+        if body.get("status") != "success":
+            raise RuntimeError(f"Prometheus answered {body.get('status')}")
+        return len(body["data"]["result"]) > 0
+
+
+    def kube(method, patch=None):
+        with open(f"{SA}/token") as f:
+            token = f.read()
+        req = urllib.request.Request(URL, method=method)
+        req.add_header("Authorization", f"Bearer {token}")
+        data = None
+        if patch is not None:
+            req.add_header("Content-Type", "application/merge-patch+json")
+            data = json.dumps(patch).encode()
+        ctx = ssl.create_default_context(cafile=f"{SA}/ca.crt")
+        with urllib.request.urlopen(req, data=data, context=ctx, timeout=20) as r:
+            return json.load(r)
+
+
+    def main():
+        try:
+            want = freeze_wanted()
+        except Exception as e:  # leave things as they are, but fail the Job
+            print(f"could not ask Prometheus, changing nothing: {e}")
+            return 1
+
+        obj = kube("GET")
+        suspended = bool(obj.get("spec", {}).get("suspend"))
+        mine = obj["metadata"].get("annotations", {}).get(MARK) == ME
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        if want and not suspended:
+            kube("PATCH", {
+                "metadata": {"annotations": {MARK: ME, "smega.eu/frozen-at": now}},
+                "spec": {"suspend": True},
+            })
+            print(f"error budget spent: suspended {NAME}")
+        elif want:
+            print(f"error budget spent: {NAME} already suspended" + ("" if mine else " ( by hand, left alone )"))
+        elif suspended and mine:
+            kube("PATCH", {
+                "metadata": {"annotations": {MARK: None, "smega.eu/frozen-at": None}},
+                "spec": {"suspend": False},
+            })
+            print(f"error budget back: resumed {NAME}")
+        elif suspended:
+            print(f"budget fine, {NAME} is suspended by hand: left alone")
+        else:
+            print("budget fine, deploys running")
+        return 0
+
+
+    sys.exit(main())
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: deploy-freeze
+  namespace: public-demo
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          imagePullSecrets:
+          - name: zot-registry
+          serviceAccountName: deploy-freeze
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: deploy-freeze
+            # The checker's image, for its Python; the script is the ConfigMap.
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795105719-3f3c528 # {"$imagepolicy": "flux-system:status-checker"}
+            command: [python, /policy/deploy_freeze.py]
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+              readOnlyRootFilesystem: true
+            env:
+            - name: PROMETHEUS_URL
+              value: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+            volumeMounts:
+            - name: policy
+              mountPath: /policy
+              readOnly: true
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
+          volumes:
+          - name: policy
+            configMap:
+              name: deploy-freeze

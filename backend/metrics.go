@@ -19,6 +19,11 @@ type metricsService struct {
 	LatencyMs     *int   `json:"latencyMs"`
 	LastCheckedAt string `json:"lastCheckedAt"`
 	Error         string `json:"error"`
+	SLO           *struct {
+		TargetPercent          float64  `json:"targetPercent"`
+		DaysOfData             int      `json:"daysOfData"`
+		BudgetRemainingPercent *float64 `json:"budgetRemainingPercent"`
+	} `json:"slo"`
 }
 
 func writeMetrics(w http.ResponseWriter, dataFile string) {
@@ -76,6 +81,18 @@ func writeMetrics(w http.ResponseWriter, dataFile string) {
 		if !s.OK && s.Error != "" {
 			reason := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(s.Error)
 			fmt.Fprintf(&b, "status_service_error{%s,error=\"%s\"} 1\n", serviceLabels(s.Name), reason)
+		}
+	}
+
+	// The 30-day error budget as the checker computes it from its daily
+	// rollups: the same number the page shows. Below 0 the budget is
+	// overspent. The deploy freeze (deployments/15-deploy-freeze.yaml)
+	// is decided on this.
+	b.WriteString("# HELP status_service_error_budget_remaining_ratio Share of the 30-day error budget left, 1 = untouched, below 0 = overspent.\n")
+	b.WriteString("# TYPE status_service_error_budget_remaining_ratio gauge\n")
+	for _, s := range data.Services {
+		if s.SLO != nil && s.SLO.BudgetRemainingPercent != nil {
+			fmt.Fprintf(&b, "status_service_error_budget_remaining_ratio{%s} %g\n", serviceLabels(s.Name), *s.SLO.BudgetRemainingPercent/100)
 		}
 	}
 

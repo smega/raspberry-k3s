@@ -141,6 +141,26 @@ the pre-rollout smoke test three times and was rolled back after about 2
 minutes without getting a single request; a probe through Cloudflare
 every second saw 609 good pages and no errors through the whole test.
 
+### Error budget policy
+
+When a service served from the cluster ( Cluster dashboard, Whoami demo )
+has spent its 30-day error budget, new versions stop going out by
+themselves ( `deployments/15-deploy-freeze.yaml` ):
+
+```
+decide    DeployFreeze alert: status_service_error_budget_remaining_ratio <= 0
+          ( status-api exports the checker's budget, the number on the page )
+enforce   deploy-freeze CronJob, every 5 min: suspends Flux's image
+          automation while the alert fires, resumes it when it stops
+```
+
+It only resumes a freeze it set itself ( annotation `smega.eu/frozen-by` ),
+never a suspend made by hand, and if Prometheus can't be asked it changes
+nothing. Only automatic tag updates stop: a hotfix goes out as a hand-made
+commit of the image tag, applied by Flux like any other change. The
+services on the VPS don't count; their failures say nothing about this
+cluster's releases. Runbook: `runbooks/DeployFreeze.md`.
+
 ### Delivery metrics (DORA)
 
 The Cluster tab shows the four DORA metrics for status-web, computed by
