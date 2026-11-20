@@ -128,6 +128,15 @@ alertmanager:
           resources:
             requests:
               storage: 1Gi
+    # Two replicas on different nodes. With one, a crashed worker took all
+    # alerting with it: its local-path volume pins the pod to that node, and
+    # a StatefulSet doesn't replace a pod on an unreachable node anyway
+    # (node-crash game day 2026-11-20: only the RunGuard watchdog noticed).
+    # The two gossip, so a notification still goes out once and silences
+    # are shared.
+    replicas: 2
+    podAntiAffinity: hard
+    podAntiAffinityTopologyKey: kubernetes.io/hostname
     # Secret alertmanager-notify (created by hand, never in git), mounted at
     # /etc/alertmanager/secrets/alertmanager-notify/:
     #   ntfy-critical-url     - https://ntfy.sh/<topic>?template=yes&title=...&message=...&priority=high&tags=rotating_light
