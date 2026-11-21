@@ -1,0 +1,178 @@
+# One preview of the status page per pull request, while the PR is open.
+#
+#   GitHub   a PR labelled "preview" ( from this repo, not a fork ) is built
+#            by .github/workflows/preview.yml into
+#            registry.smdoes.eu/raspberry-preview/status-web:pr-<n>-<head sha>
+#   here     the provider below lists those PRs every 5 minutes; the
+#            ResourceSet keeps a namespace preview-pr-<n> for each, with
+#            that build behind https://pr-<n>-status.smega.eu, and deletes
+#            the namespace when the PR is closed or loses the label.
+#
+# The preview is the page only: it reads the live status API, like the
+# real page, so there is nothing else to run. At most 2 at a time, each
+# with a quota of 1 pod.
+#
+# Unauthenticated GitHub API ( a public repo ): 12 requests an hour is well
+# under the 60 allowed.
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSetInputProvider
+metadata:
+  name: status-web-prs
+  namespace: flux-system
+  annotations:
+    fluxcd.controlplane.io/reconcileEvery: "5m"
+spec:
+  type: GitHubPullRequest
+  url: https://github.com/smega/raspberry-k3s
+  filter:
+    labels:
+      - preview
+    limit: 2
+---
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: status-web-previews
+  namespace: flux-system
+spec:
+  # Not the operator's own cluster-admin account: rbac.yaml.
+  serviceAccountName: preview-deployer
+  inputsFrom:
+    - kind: ResourceSetInputProvider
+      name: status-web-prs
+  resourcesTemplate: |
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: preview-pr-<< inputs.id >>
+      labels:
+        expose-via-public-gateway: "true"
+        # Signatures checked; preview images are only allowed in
+        # namespaces with this label ( image-policies/ ).
+        policy.sigstore.dev/include: "true"
+        smega.eu/preview: "true"
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/enforce-version: latest
+    ---
+    apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: preview
+      namespace: preview-pr-<< inputs.id >>
+    spec:
+      hard:
+        pods: "1"
+        requests.cpu: 50m
+        requests.memory: 64Mi
+        limits.cpu: 300m
+        limits.memory: 128Mi
+    ---
+    # Copies of the live page's pull secret and incident log.
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: zot-registry
+      namespace: preview-pr-<< inputs.id >>
+      annotations:
+        fluxcd.controlplane.io/copyFrom: public-demo/zot-registry
+    type: kubernetes.io/dockerconfigjson
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: status-content
+      namespace: preview-pr-<< inputs.id >>
+      annotations:
+        fluxcd.controlplane.io/copyFrom: public-demo/status-content
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: status-web
+      namespace: preview-pr-<< inputs.id >>
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: status-web
+      template:
+        metadata:
+          labels:
+            app: status-web
+        spec:
+          imagePullSecrets:
+            - name: zot-registry
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            sysctls:
+              - name: net.ipv4.ip_unprivileged_port_start
+                value: "0"
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: web
+              # Pushed by CI a few minutes after the PR changes; until then
+              # the pod waits in ImagePullBackOff and retries.
+              image: registry.smdoes.eu/raspberry-preview/status-web:pr-<< inputs.id >>-<< inputs.sha >>
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+                readOnlyRootFilesystem: true
+              ports:
+                - containerPort: 80
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: content
+                  mountPath: /usr/share/nginx/html/content
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 96Mi
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            - name: content
+              configMap:
+                name: status-content
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: status-web
+      namespace: preview-pr-<< inputs.id >>
+    spec:
+      selector:
+        app: status-web
+      ports:
+        - port: 80
+          targetPort: 80
+    ---
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: status-web
+      namespace: preview-pr-<< inputs.id >>
+    spec:
+      parentRefs:
+        - name: public-gateway
+          namespace: kong
+          sectionName: http
+      hostnames:
+        - pr-<< inputs.id >>-status.smega.eu
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: status-web
+              port: 80

@@ -1,0 +1,49 @@
+# Flux Operator, only for its ResourceSet API (../resourceset/): it reads
+# the open pull requests from GitHub and keeps one preview namespace per PR.
+# It does not manage Flux itself here: there is no FluxInstance, Flux stays
+# as bootstrapped (clusters/home/flux-system).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: flux-operator
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/controlplaneio-fluxcd/charts
+  interval: 12h
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator
+  namespace: flux-system
+spec:
+  releaseName: flux-operator
+  interval: 1h
+  timeout: 10m
+  chart:
+    spec:
+      chart: flux-operator
+      version: 0.63.0
+      sourceRef:
+        kind: HelmRepository
+        name: flux-operator
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  values:
+    # No status web UI: nothing would use it, and it is one more port.
+    web:
+      enabled: false
+    # Sized for a Pi: it watches one provider and one ResourceSet.
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi

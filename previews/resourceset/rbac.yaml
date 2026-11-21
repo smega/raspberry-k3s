@@ -1,0 +1,37 @@
+# What the ResourceSet ( previews.yaml ) may do, instead of the operator's
+# cluster-admin: the kinds a preview is made of, nothing else. Namespaces
+# can't be limited by name at creation, so this is cluster-wide; what it
+# creates is fixed by the template in git.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: preview-deployer
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: preview-deployer
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, resourcequotas, secrets, configmaps, services]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: preview-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: preview-deployer
+subjects:
+  - kind: ServiceAccount
+    name: preview-deployer
+    namespace: flux-system

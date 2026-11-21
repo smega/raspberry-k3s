@@ -1,0 +1,35 @@
+# Pull request previews of the status page ( previews/ ): the Flux
+# Operator first, for its CRDs, then the ResourceSet that uses them.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-operator
+  namespace: flux-system
+spec:
+  interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
+  path: ./previews/operator
+  prune: true
+  wait: true
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: previews
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: flux-operator
+    - name: image-policies  # preview images are checked before one runs
+  interval: 30m
+  retryInterval: 1m  # a failed apply retries soon, not after 30m
+  path: ./previews/resourceset
+  prune: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

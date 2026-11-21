@@ -3,7 +3,8 @@
 # nothing is deployed by hand anymore.
 #
 # Only push and manual runs, never pull requests: the registry secrets
-# must not be reachable from a fork's PR.
+# must not be reachable from a fork's PR. Pull request previews are
+# preview.yml, which skips forks.
 name: images
 
 on:

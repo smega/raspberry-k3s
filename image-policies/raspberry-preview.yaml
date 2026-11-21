@@ -1,0 +1,68 @@
+# Pull request previews ( previews/ ) run builds of a PR, not of main, so
+# they live under registry.smdoes.eu/raspberry-preview/, which the main
+# policies ( raspberry-images.yaml, raspberry-attestations.yaml ) don't
+# cover. Same checks, with the PR's identity: signed, with an SBOM and
+# provenance, by build-image.yml running for a pull request of this repo.
+#
+# A PR build passing here must not run anywhere else: the
+# ValidatingAdmissionPolicy below refuses raspberry-preview images outside
+# namespaces labelled smega.eu/preview=true. That check is in the API
+# server itself, so it holds even when the policy-controller is down.
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: raspberry-preview
+spec:
+  mode: enforce
+  images:
+    - glob: "registry.smdoes.eu/raspberry-preview/**"
+  authorities:
+    - keyless:
+        url: https://fulcio.sigstore.dev
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subjectRegExp: ^https://github\.com/smega/raspberry-k3s/\.github/workflows/build-image\.yml@refs/pull/[0-9]+/merge$
+      ctlog:
+        url: https://rekor.sigstore.dev
+      attestations:
+        - name: sbom
+          predicateType: https://spdx.dev/Document
+        - name: provenance
+          predicateType: https://slsa.dev/provenance/v1
+          policy:
+            type: cue
+            data: |
+              predicateType: "https://slsa.dev/provenance/v1"
+              predicate: runDetails: builder: id: =~"^https://github.com/smega/raspberry-k3s/.github/workflows/build-image.yml@refs/pull/[0-9]+/merge$"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: preview-images-stay-in-previews
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: smega.eu/preview
+          operator: NotIn
+          values: ["true"]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  validations:
+    - expression: >-
+        object.spec.containers.all(c, !c.image.startsWith('registry.smdoes.eu/raspberry-preview/')) &&
+        (!has(object.spec.initContainers) ||
+         object.spec.initContainers.all(c, !c.image.startsWith('registry.smdoes.eu/raspberry-preview/')))
+      message: pull request builds ( registry.smdoes.eu/raspberry-preview ) only run in preview namespaces
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: preview-images-stay-in-previews
+spec:
+  policyName: preview-images-stay-in-previews
+  validationActions: [Deny]

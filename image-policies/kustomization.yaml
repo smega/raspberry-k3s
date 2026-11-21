@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - raspberry-images.yaml
   - raspberry-attestations.yaml
+  - raspberry-preview.yaml

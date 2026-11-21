@@ -1,0 +1,60 @@
+# A pull request labelled "preview" that changes the page gets its own
+# copy of it at https://pr-<n>-status.smega.eu ( previews/ in this repo
+# deploys it, and deletes it when the PR closes ).
+#
+# The build is the same as main's ( build-image.yml: Trivy gate, signed,
+# SBOM and provenance ), pushed to registry.smdoes.eu/raspberry-preview/,
+# which the cluster only runs in preview namespaces ( image-policies/ ).
+#
+# Only PRs from branches of this repo: a fork's PR gets no secrets from
+# GitHub, so it is skipped rather than failing at the registry login.
+name: preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+    paths:
+      - frontend/**
+
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  status-web:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'preview')
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: status-web
+      context: frontend
+      build-status-web-args: true
+      security-tab: false
+      registry-path: raspberry-preview
+      # The head commit, as the cluster sees it in the PR ( previews/ ).
+      tag: pr-${{ github.event.number }}-${{ github.event.pull_request.head.sha }}
+      identity-ref: ${{ github.ref }}
+    secrets: inherit
+
+  comment:
+    needs: status-web
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Link the preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body \
+            "Preview of ${SHA::7}: https://pr-${PR}-status.smega.eu ( live within about 5 minutes, deleted when this PR closes )"
