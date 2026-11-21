@@ -11,8 +11,6 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - [cluster.smega.eu](https://cluster.smega.eu) -- a readonly dashboard showing
   selected live cluster state (pods, services, deployments, nodes, etc), also
   open source: [cluster-dashboard](https://github.com/smega/cluster-dashboard).
-- `lab.smega.eu` / `api-lab.smega.eu` are reserved, not currently routed to
-  anything.
 
 ## Layout
 
