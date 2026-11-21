@@ -109,6 +109,19 @@ GitHub's own `attest-build-provenance` isn't used. A cached rebuild of an
 unchanged image gives the same digest, so the attestations cover every
 tag that points at it.
 
+### Dependency updates that merge themselves
+
+Renovate opens its pull requests on Monday mornings, after a release has
+been out for 14 days. Every pull request that changes an image's source is
+built and scanned exactly as main would be ( `.github/workflows/pr-checks.yml`:
+the tests in the Dockerfile, the Trivy gate; nothing pushed or signed ).
+For the status page's own dependencies ( `frontend/`, `backend/` ) and
+GitHub Actions, minor, patch and digest updates merge themselves once that
+passes, on weekdays between 9 and 4, when I'm around. The merge is not the
+last gate: the new image still goes out as a canary that rolls back by
+itself. Helm charts, k3s, Flux and the checker stay manual
+( `renovate.json` ).
+
 ### What a pull request would change
 
 Every pull request that touches what Flux applies gets one comment, kept
