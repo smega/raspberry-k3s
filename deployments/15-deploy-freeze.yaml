@@ -39,9 +39,7 @@ spec:
             runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/DeployFreeze.md
             summary: "{{ $labels.service }} has spent its error budget: new versions are frozen"
             description: >-
-              {{ $labels.service }} is out of its 30-day error budget ( SLO
-              99.5% ), so Flux's image automation is suspended until it
-              recovers. Hotfixes go out as a hand-made commit of the image tag.
+              {{ $labels.service }} is out of its 30-day error budget ( SLO 99.5% ), so Flux's image automation is suspended until it recovers. Hotfixes go out as a hand-made commit of the image tag.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -196,7 +194,7 @@ spec:
           containers:
           - name: deploy-freeze
             # The checker's image, for its Python; the script is the ConfigMap.
-            image: registry.smdoes.eu/raspberry/status-checker:main-1795105719-3f3c528 # {"$imagepolicy": "flux-system:status-checker"}
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795243614-29798a1 # {"$imagepolicy": "flux-system:status-checker"}
             command: [python, /policy/deploy_freeze.py]
             securityContext:
               allowPrivilegeEscalation: false
