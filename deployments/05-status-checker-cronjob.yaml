@@ -62,10 +62,13 @@ spec:
             - name: RUNGUARD_RESTORE_TEST_URL
               valueFrom:
                 secretKeyRef: {name: runguard-public-jobs, key: restore-test, optional: true}
+            # Measured 2026-11-21: up to 88Mi, and throttled through every
+            # run at the old 100m limit ( a run took ~60 s, mostly Python
+            # starting up ).
             resources:
               requests:
-                cpu: 20m
-                memory: 48Mi
+                cpu: 25m
+                memory: 80Mi
               limits:
-                cpu: 100m
-                memory: 96Mi
+                cpu: 500m
+                memory: 160Mi

@@ -22,10 +22,12 @@ webhook:
     # Images no policy covers (traefik/whoami, ...) are fine; only
     # registry.smdoes.eu/raspberry/** has to be signed.
     no-match-policy: allow
+  # Measured 2026-11-21: up to 219Mi ( 85% of the old 256Mi limit ), ~47m
+  # CPU at p95, throttled at the old 200m limit.
   resources:
     requests:
-      cpu: 20m
-      memory: 64Mi
+      cpu: 50m
+      memory: 224Mi
     limits:
-      cpu: 200m
-      memory: 256Mi
+      cpu: 300m
+      memory: 384Mi

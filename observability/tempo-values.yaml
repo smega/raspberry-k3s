@@ -10,12 +10,14 @@ tempo:
           endpoint: "0.0.0.0:4317"
         http:
           endpoint: "0.0.0.0:4318"
+  # Measured 2026-11-21: up to 320Mi, OOM-killed twice in 7 days at the
+  # old 320Mi limit; ~13m CPU.
   resources:
     requests:
-      cpu: 30m
-      memory: 128Mi
+      cpu: 20m
+      memory: 256Mi
     limits:
-      memory: 320Mi
+      memory: 448Mi
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:

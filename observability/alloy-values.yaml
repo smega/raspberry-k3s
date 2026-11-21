@@ -61,12 +61,14 @@ alloy:
       port: 4318
       targetPort: 4318
       protocol: TCP
+  # Measured 2026-11-21: up to 238Mi ( 93% of the old 256Mi limit ),
+  # ~15m CPU with spikes.
   resources:
     requests:
       cpu: 30m
-      memory: 96Mi
+      memory: 192Mi
     limits:
-      memory: 256Mi
+      memory: 384Mi
   configMap:
     content: |
       // Logs: every pod's containers, labelled by namespace, pod,
