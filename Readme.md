@@ -124,7 +124,9 @@ Kustomizations are skipped.
 
 ### Canary releases
 
-A new status-web image doesn't replace the running one. Flagger
+A new status-web or status-api image doesn't replace the running one
+( status-api since 2026-11-21, `deployments/18-status-api-canary.yaml`,
+with a smoke test of the endpoints the page needs ). Flagger
 (`flagger/`, the Canary in `deployments/14-status-web-canary.yaml`) keeps
 the live version as `status-web-primary` and starts the new build next to
 it, then:

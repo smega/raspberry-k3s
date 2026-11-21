@@ -21,9 +21,12 @@ again.
 Which check failed, and when:
 
 ```
-kubectl -n public-demo describe canary status-web | tail -20
-kubectl -n flagger-system logs deploy/flagger | grep status-web | tail -20
+kubectl -n public-demo describe canary <name> | tail -20
+kubectl -n flagger-system logs deploy/flagger | grep <name> | tail -20
 ```
+
+`<name>` is status-web ( `deployments/14-status-web-canary.yaml` ) or
+status-api ( `deployments/18-status-api-canary.yaml` ).
 
 - `pre-rollout check smoke test before traffic failed` / `smoke test`
   failed: the page, its JS bundle or `/content/incidents.json` didn't
@@ -36,6 +39,12 @@ kubectl -n flagger-system logs deploy/flagger | grep status-web | tail -20
   The canary is scaled to zero after the rollback; to look at it again,
   push the same image once more or reproduce locally (`npm run build`,
   `npm run preview` in `frontend/`).
+- status-api's smoke test checks `/healthz`, `/api/status`, `/api/freeze`
+  and `/api/nodes` on `status-api-canary.public-demo`; same command by hand
+  from the load tester.
+- `Metric query failed`: the check itself is broken, not the release
+  ( see the History below ). Fix the Canary, and the change restarts the
+  analysis with the same image.
 - `no restarts` above 0: the new container crashed; its logs are gone with
   the pod, so reproduce it locally.
 - `progress deadline exceeded`: the canary pods never became ready
@@ -55,3 +64,9 @@ The alert clears when the next release starts.
 - 2026-11-19: game day with a deliberately broken build (root element
   renamed): rolled back at the pre-rollout smoke test, no request reached
   it.
+- 2026-11-21: status-api's first release through its new canary was
+  rolled back: the smoke test passed, but the restarts check had no
+  interval, so its query was invalid ( `Metric query failed ... 400` ).
+  Fixed in the Canary ( ebef8ee ); the same image went out 6 minutes
+  later. Visitors saw nothing: 1141 requests from outside during both
+  releases, none failed. First alert followed by its diagnostics message.
