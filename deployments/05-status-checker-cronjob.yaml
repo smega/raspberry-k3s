@@ -27,7 +27,7 @@ spec:
               type: RuntimeDefault
           containers:
           - name: checker
-            image: registry.smdoes.eu/raspberry/status-checker:main-1795243614-29798a1 # {"$imagepolicy": "flux-system:status-checker"}
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795244267-6cc711f # {"$imagepolicy": "flux-system:status-checker"}
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:

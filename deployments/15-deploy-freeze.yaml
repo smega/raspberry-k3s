@@ -194,7 +194,7 @@ spec:
           containers:
           - name: deploy-freeze
             # The checker's image, for its Python; the script is the ConfigMap.
-            image: registry.smdoes.eu/raspberry/status-checker:main-1795243614-29798a1 # {"$imagepolicy": "flux-system:status-checker"}
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795244267-6cc711f # {"$imagepolicy": "flux-system:status-checker"}
             command: [python, /policy/deploy_freeze.py]
             securityContext:
               allowPrivilegeEscalation: false
