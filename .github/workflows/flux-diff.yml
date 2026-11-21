@@ -1,0 +1,120 @@
+# On every pull request that touches what Flux applies: render every Flux
+# Kustomization and HelmRelease of this repo on main and on the PR, without
+# the cluster ( flux-local ), validate the PR's manifests against their
+# schemas ( kubeconform, CRDs included ), and comment the difference on the
+# PR. Removed objects show as deletions: with prune on, that is what Flux
+# would delete.
+#
+# Not a live diff ( `flux diff` needs the API server, which CI can't reach
+# and shouldn't ): it compares main with the PR, not with what is running.
+# The private repo's Kustomizations ( secrets, private ) are skipped.
+# Chart diffs leave out the kinds charts regenerate on every render
+# ( webhook configurations with a fresh caBundle, Secrets ).
+name: flux-diff
+
+on:
+  pull_request:
+    paths-ignore:
+      - frontend/**
+      - backend/**
+      - cron/**
+      - alert-diagnostics/**
+      - loadtest/**
+      - tools/**
+      - postmortems/**
+      - runbooks/**
+      - "**.md"
+
+concurrency:
+  group: flux-diff-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUX_LOCAL: ghcr.io/allenporter/flux-local:v8.1.0
+  KUBECONFORM: ghcr.io/yannh/kubeconform:v0.7.0
+  # flux-local runs git inside its container, on a checkout another user
+  # owns.
+  GIT_SAFE: -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=*
+  FL_ARGS: >-
+    -A --path clusters/home --sources flux-system
+    --skip-invalid-kustomization-paths --skip-secrets
+
+jobs:
+  diff:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pr
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      # The gate: every Kustomization must still build, and every object
+      # in it must match its schema.
+      - name: Build and validate
+        run: |
+          docker run --rm $GIT_SAFE -v "$PWD/pr:/repo" -w /repo "$FLUX_LOCAL" build ks $FL_ARGS > rendered.yaml
+          echo "objects: $(grep -c '^kind:' rendered.yaml)"
+          docker run --rm -v "$PWD:/w" "$KUBECONFORM" -summary -output text -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /w/rendered.yaml | tee kubeconform.txt
+
+      - name: Diff
+        run: |
+          run() { docker run --rm $GIT_SAFE -v "$PWD/pr:/repo" -v "$PWD/base:/orig" -w /repo "$FLUX_LOCAL" "$@" 2>/dev/null; }
+          run diff ks $FL_ARGS --path-orig /orig/clusters/home > ks.diff || true
+          run diff hr $FL_ARGS --path-orig /orig/clusters/home \
+            --skip-kinds ValidatingWebhookConfiguration,MutatingWebhookConfiguration,Secret > hr.diff || true
+          {
+            echo "<!-- flux-diff -->"
+            echo "### What Flux would apply"
+            echo
+            echo "Rendered from main ( \`${GITHUB_BASE_SHA::7}\` ) and this PR ( \`${GITHUB_HEAD_SHA::7}\` ), without the cluster. $(tail -1 kubeconform.txt)"
+            for f in ks hr; do
+              title=$([ $f = ks ] && echo "Kustomizations" || echo "HelmReleases, charts rendered")
+              changed=$(grep -c '^+++ ' $f.diff || true)
+              removed=$(grep -c '^@@ -1,[0-9]* +0,0 @@' $f.diff || true)
+              echo
+              if [ -s $f.diff ]; then
+                echo "<details><summary><b>$title</b>: $changed objects changed, $removed of them removed</summary>"
+                echo
+                echo '```diff'
+                head -c 28000 $f.diff
+                [ "$(wc -c < $f.diff)" -gt 28000 ] && echo "... cut, the full diff is in the job summary"
+                echo '```'
+                echo "</details>"
+              else
+                echo "**$title**: no change"
+              fi
+            done
+          } > comment.md
+          { cat comment.md; echo; echo '```diff'; cat ks.diff hr.diff; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      # One comment per PR, updated on each push ( found by its marker, so
+      # the preview link comment stays ). A fork's PR has a read-only token:
+      # the job summary has it all.
+      - name: Comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.number }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '[.[] | select(.body | startswith("<!-- flux-diff -->"))][0].id // empty')
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md > /dev/null
+          fi
