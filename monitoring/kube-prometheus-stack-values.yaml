@@ -204,16 +204,25 @@ alertmanager:
     receivers:
       - name: "null"
       # ntfy.sh renders Alertmanager's webhook JSON itself (inline template, above).
+      # Each ntfy receiver also posts to alert-diagnostics (alert-diagnostics.yaml),
+      # which follows up with a quiet message of context. Separate webhooks:
+      # if it is down, the alert above still goes out.
       - name: ntfy-critical
         webhook_configs:
           - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-critical-url
             send_resolved: true
             # ntfy rejects a templated message over 4 KB (HTTP 400).
             max_alerts: 3
+          - url: http://alert-diagnostics.monitoring.svc/alert
+            send_resolved: false
+            max_alerts: 3
       - name: ntfy-warning
         webhook_configs:
           - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-warning-url
             send_resolved: true
+            max_alerts: 3
+          - url: http://alert-diagnostics.monitoring.svc/alert
+            send_resolved: false
             max_alerts: 3
       - name: runguard
         webhook_configs:

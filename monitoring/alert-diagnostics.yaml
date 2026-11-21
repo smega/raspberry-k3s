@@ -1,0 +1,122 @@
+# alert-diagnostics ( ../alert-diagnostics/ ): Alertmanager's ntfy receivers
+# also post here, and for each new firing alert it sends a second, quiet
+# ntfy message with the target's events, logs, last rollout, error budgets
+# and what else is firing. The alert itself goes to ntfy directly, so this
+# being down only loses the diagnostics.
+#
+# Read-only in the cluster. The ntfy topic comes from the same Secret
+# Alertmanager uses ( alertmanager-notify, ntfy-warning-url ).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alert-diagnostics
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alert-diagnostics
+rules:
+  - apiGroups: [""]
+    resources: [events, nodes]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [list]
+  - apiGroups: [source.toolkit.fluxcd.io]
+    resources: [gitrepositories]
+    verbs: [get]
+  - apiGroups: [kustomize.toolkit.fluxcd.io]
+    resources: [kustomizations]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alert-diagnostics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alert-diagnostics
+subjects:
+  - kind: ServiceAccount
+    name: alert-diagnostics
+    namespace: monitoring
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-diagnostics
+  namespace: monitoring
+spec:
+  # One: it remembers in memory which alerts it has already sent, and a
+  # missed diagnostics message is not a missed alert.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alert-diagnostics
+  template:
+    metadata:
+      labels:
+        app: alert-diagnostics
+    spec:
+      serviceAccountName: alert-diagnostics
+      imagePullSecrets:
+        - name: zot-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: diagnostics
+          image: registry.smdoes.eu/raspberry/alert-diagnostics:main-1795252297-5f327a6 # {"$imagepolicy": "flux-system:alert-diagnostics"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          env:
+            - name: NTFY_URL_FILE
+              value: /etc/ntfy/ntfy-warning-url
+            - name: PROMETHEUS_URL
+              value: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+            - name: LOKI_URL
+              value: http://loki.observability.svc:3100
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          volumeMounts:
+            - name: ntfy
+              mountPath: /etc/ntfy
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+      volumes:
+        - name: ntfy
+          secret:
+            secretName: alertmanager-notify
+            items:
+              - key: ntfy-warning-url
+                path: ntfy-warning-url
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-diagnostics
+  namespace: monitoring
+spec:
+  selector:
+    app: alert-diagnostics
+  ports:
+    - port: 80
+      targetPort: 8080
