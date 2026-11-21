@@ -1068,7 +1068,7 @@ function HowItWorksSection({ apiBase }) {
   )
 }
 
-// Same Buttondown list and links as smega.eu. The embed form is a plain
+// Same Buttondown list and links as smega.eu ( also on PR previews ). The embed form is a plain
 // HTML POST; the hidden tag marks subscribers who came from this page.
 const BUTTONDOWN_USER = 'smega'
 const AUTHOR_LINKS = [
