@@ -286,6 +286,30 @@ kubelet read-only port closed). Falco isn't running: the Raspberry Pi
 kernel has no BTF, so its eBPF driver can't load without being compiled
 for every kernel update.
 
+## Requests from measured usage
+
+Requests and limits were set by guess, and some by nobody: Prometheus and
+Grafana had none, so the scheduler counted kube-master as nearly empty
+while it was the busiest node. On 2026-11-21 every container was measured
+against its settings ( `tools/resource-report.py`: CPU p95 over 36 hours
+without load tests, memory peak over 7 days, throttling ):
+
+```
+found   tempo OOM-killed twice at its limit; alloy at 93% of its limit;
+        the policy webhook at 85%; the status checker throttled through
+        every run ( 67 s, now 21 s ); Flux reserving ~600m CPU for
+        controllers using 2-35m; Alertmanager reserving 200Mi each for 33Mi
+rule    CPU request ~ p95, memory request ~ peak + 15%, memory limit ~2x
+        peak; CPU limits kept ( the load test set them ) unless normal
+        running is throttled; no memory limit on Prometheus
+```
+
+kube-master's requested memory went from 7% to 42% of the node ( it uses
+75% ). The public pages kept their CPU requests: their HPAs scale on a
+percentage of them. CoreDNS and metrics-server are k3s's own manifests.
+The Kong gateways rolled through the change with 0 failed requests
+( 265, one a second, through Cloudflare ).
+
 ## Network policies: default deny
 
 Until 2026-11-21 any pod could reach any pod. A test pod labelled like
