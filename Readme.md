@@ -163,6 +163,24 @@ commit of the image tag, applied by Flux like any other change. The
 services on the VPS don't count; their failures say nothing about this
 cluster's releases. Runbook: `runbooks/DeployFreeze.md`.
 
+### SLOs from real traffic
+
+The checker asks each site once every 5 minutes. Kong now also counts
+every request visitors make, per route, with its status code and latency
+( the prometheus plugin, `kong/metrics.yaml` ), and
+`deployments/17-traffic-slo.yaml` turns that into a second set of SLOs:
+
+```
+availability  99.5% of requests not 5xx, every public route
+latency       99% under 250 ms for the status page, under 2 s for its API
+```
+
+Same multi-window burn rates as the checker SLOs, with one addition for
+low traffic: an alert also needs a minimum number of bad requests, so a
+single 502 in a quiet hour doesn't page. The rules have promtool tests
+( `tools/rule-tests/run.sh` ). The Cluster tab shows the last 24 hours
+( `/api/traffic` ).
+
 ### Alerts that arrive with their diagnostics
 
 Every alert that goes to my phone is followed by a quiet second message

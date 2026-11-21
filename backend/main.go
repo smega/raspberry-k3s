@@ -88,6 +88,7 @@ func main() {
 	nodes := &nodesCache{prom: prom}
 	release := &releaseCache{prom: prom}
 	freeze := &freezeCache{prom: prom}
+	traffic := &trafficCache{prom: prom}
 	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}, known: map[string]int64{}}}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
@@ -115,6 +116,16 @@ func main() {
 		if err != nil {
 			log.Printf("could not read the deploy freeze: %v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "deploy freeze not available"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	router.GET("/api/traffic", func(c *gin.Context) {
+		resp, err := traffic.get(c.Request.Context())
+		if err != nil {
+			log.Printf("could not read the traffic numbers: %v", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "traffic numbers not available"})
 			return
 		}
 		c.JSON(http.StatusOK, resp)

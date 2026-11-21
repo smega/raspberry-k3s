@@ -993,6 +993,55 @@ function DeliverySection({ apiBase }) {
   )
 }
 
+// What visitors actually got, from Kong's per-request metrics, through
+// status-api's /api/traffic: the numbers the traffic SLOs alert on.
+function TrafficSection({ apiBase }) {
+  const [t, setT] = useState(null)
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`${apiBase}/api/traffic`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v) => setT(v))
+        .catch(() => setT(null))
+    }
+    load()
+    const interval = setInterval(load, 5 * 60_000)
+    return () => clearInterval(interval)
+  }, [apiBase])
+
+  if (!t || t.requests == null) return null
+  const windowStart = Date.now() / 1000 - t.windowHours * 3600
+  const span =
+    t.since != null && t.since > windowStart + 3600
+      ? `since ${formatBuildTime(new Date(t.since * 1000).toISOString())}`
+      : `in the last ${t.windowHours} hours`
+  const pct = (v, digits) => (v == null ? '-' : `${(v * 100).toFixed(digits)}%`)
+  const p = { margin: '16px 0 0', fontSize: '13px', color: INK_SECONDARY, lineHeight: 1.6, maxWidth: '720px' }
+  return (
+    <section style={{ marginTop: '48px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 16px', color: INK_PRIMARY }}>What visitors got</h2>
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px' }}>
+          <StatTile label="Requests" value={Math.round(t.requests).toLocaleString('en-GB')} detail={span} />
+          <StatTile label="Server errors" value={pct(t.errorRatio, 2)} detail="5xx answers, SLO under 0.5%" />
+          <StatTile
+            label="Page latency"
+            value={t.pageP95Ms != null ? `${Math.round(t.pageP95Ms)} ms` : '-'}
+            detail="95th percentile, this page"
+          />
+          <StatTile label="Under 250 ms" value={pct(t.pageFastRatio, 1)} detail="this page, SLO 99%" />
+        </div>
+        <p style={p}>
+          Counted at the gateway for every request, not sampled: the uptime on the Services tab comes from one check
+          every 5 minutes, these from everything visitors actually asked for. Both have their own error budget and
+          alerts.
+        </p>
+      </Card>
+    </section>
+  )
+}
+
 function HowItWorksSection({ apiBase }) {
   const p = { margin: '0 0 12px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6 }
   return (
@@ -1425,6 +1474,7 @@ function ClusterView({ apiBase }) {
       <h1 style={{ fontSize: '28px', fontWeight: 600, margin: '0 0 10px', color: INK_PRIMARY }}>Raspberry Pi cluster</h1>
       <NodesSection apiBase={apiBase} />
       <DeliverySection apiBase={apiBase} />
+      <TrafficSection apiBase={apiBase} />
       <HowItWorksSection apiBase={apiBase} />
     </>
   )
