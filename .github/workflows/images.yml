@@ -14,6 +14,7 @@ on:
       - frontend/**
       - backend/**
       - cron/**
+      - alert-diagnostics/**
       - pi-temp-led/Dockerfile
       - pi-temp-led/app/**
       - .github/workflows/images.yml
@@ -39,6 +40,7 @@ jobs:
       web: ${{ steps.f.outputs.web == 'true' || inputs.all == true }}
       api: ${{ steps.f.outputs.api == 'true' || inputs.all == true }}
       checker: ${{ steps.f.outputs.checker == 'true' || inputs.all == true }}
+      diag: ${{ steps.f.outputs.diag == 'true' || inputs.all == true }}
       led: ${{ steps.f.outputs.led == 'true' || inputs.all == true }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,6 +59,9 @@ jobs:
             checker:
               - *shared
               - cron/**
+            diag:
+              - *shared
+              - alert-diagnostics/**
             led:
               - *shared
               - pi-temp-led/Dockerfile
@@ -100,6 +105,19 @@ jobs:
     with:
       image: status-checker
       context: cron
+    secrets: inherit
+
+  alert-diagnostics:
+    needs: changes
+    if: needs.changes.outputs.diag == 'true'
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: alert-diagnostics
+      context: alert-diagnostics
     secrets: inherit
 
   pi-temp-led:
