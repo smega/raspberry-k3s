@@ -1,0 +1,102 @@
+# Every pull request that changes an image's source gets that image built
+# and scanned exactly as main would ( build-image.yml: build, tests in the
+# Dockerfile, Trivy gate ), without pushing or signing. These are the checks
+# Renovate waits for before it merges a dependency update ( renovate.json );
+# after the merge, the canary ( status-web, status-api ) is the second gate.
+#
+# No secrets: nothing is pushed, so a fork's PR runs it too.
+name: pr-checks
+
+on:
+  pull_request:
+    paths:
+      - frontend/**
+      - backend/**
+      - cron/**
+      - alert-diagnostics/**
+      - pi-temp-led/Dockerfile
+      - pi-temp-led/app/**
+      - .github/workflows/build-image.yml
+      - .github/workflows/pr-checks.yml
+
+concurrency:
+  group: pr-checks-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      web: ${{ steps.f.outputs.web }}
+      api: ${{ steps.f.outputs.api }}
+      checker: ${{ steps.f.outputs.checker }}
+      diag: ${{ steps.f.outputs.diag }}
+      led: ${{ steps.f.outputs.led }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        with:
+          filters: |
+            shared: &shared
+              - .github/workflows/build-image.yml
+              - .github/workflows/pr-checks.yml
+            web:
+              - *shared
+              - frontend/**
+            api:
+              - *shared
+              - backend/**
+            checker:
+              - *shared
+              - cron/**
+            diag:
+              - *shared
+              - alert-diagnostics/**
+            led:
+              - *shared
+              - pi-temp-led/Dockerfile
+              - pi-temp-led/app/**
+
+  status-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    uses: ./.github/workflows/build-image.yml
+    # What build-image.yml declares; with push off, nothing uses them.
+    permissions: {contents: read, id-token: write, security-events: write}
+    with: {image: status-web, context: frontend, push: false, security-tab: false, build-status-web-args: true}
+
+  status-api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    uses: ./.github/workflows/build-image.yml
+    # What build-image.yml declares; with push off, nothing uses them.
+    permissions: {contents: read, id-token: write, security-events: write}
+    with: {image: status-api, context: backend, push: false, security-tab: false}
+
+  status-checker:
+    needs: changes
+    if: needs.changes.outputs.checker == 'true'
+    uses: ./.github/workflows/build-image.yml
+    # What build-image.yml declares; with push off, nothing uses them.
+    permissions: {contents: read, id-token: write, security-events: write}
+    with: {image: status-checker, context: cron, push: false, security-tab: false}
+
+  alert-diagnostics:
+    needs: changes
+    if: needs.changes.outputs.diag == 'true'
+    uses: ./.github/workflows/build-image.yml
+    # What build-image.yml declares; with push off, nothing uses them.
+    permissions: {contents: read, id-token: write, security-events: write}
+    with: {image: alert-diagnostics, context: alert-diagnostics, push: false, security-tab: false}
+
+  pi-temp-led:
+    needs: changes
+    if: needs.changes.outputs.led == 'true'
+    uses: ./.github/workflows/build-image.yml
+    # What build-image.yml declares; with push off, nothing uses them.
+    permissions: {contents: read, id-token: write, security-events: write}
+    with: {image: pi-temp-led, context: pi-temp-led, push: false, security-tab: false}

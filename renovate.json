@@ -1,22 +1,74 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
   "timezone": "Europe/London",
-  "schedule": ["before 9am on monday"],
+  "schedule": [
+    "before 9am on monday"
+  ],
+  "automergeSchedule": [
+    "after 9am and before 4pm every weekday"
+  ],
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "ignoreTests": false,
   "minimumReleaseAge": "14 days",
   "prConcurrentLimit": 5,
-  "flux": { "fileMatch": ["\\.ya?ml$"] },
+  "flux": {
+    "fileMatch": [
+      "\\.ya?ml$"
+    ]
+  },
   "packageRules": [
     {
       "description": "Our own images are deployed by Flux image automation, not Renovate",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["registry.smdoes.eu/**"],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "registry.smdoes.eu/**"
+      ],
       "enabled": false
     },
     {
       "description": "k3s, Kong, kube-prometheus-stack, Flux itself: read the release notes, no automerge",
-      "matchPackageNames": ["rancher/**", "kong/**", "kube-prometheus-stack", "ingress", "fluxcd/**"],
+      "matchPackageNames": [
+        "rancher/**",
+        "kong/**",
+        "kube-prometheus-stack",
+        "ingress",
+        "fluxcd/**"
+      ],
       "automerge": false
+    },
+    {
+      "description": "Automerge for the status page's own dependencies: built and scanned on the PR ( pr-checks.yml ), then released as a canary that rolls back by itself. Minor, patch and digest only.",
+      "matchFileNames": [
+        "frontend/**",
+        "backend/**"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pinDigest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Automerge for GitHub Actions updates ( pinned to digests ): minor, patch and digest only.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pinDigest"
+      ],
+      "automerge": true
     }
   ]
 }
