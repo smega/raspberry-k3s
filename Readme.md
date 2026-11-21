@@ -163,6 +163,31 @@ commit of the image tag, applied by Flux like any other change. The
 services on the VPS don't count; their failures say nothing about this
 cluster's releases. Runbook: `runbooks/DeployFreeze.md`.
 
+### Pull request previews
+
+A pull request labelled `preview` that changes `frontend/` gets its own
+copy of the status page at `https://pr-<n>-status.smega.eu`, live a few
+minutes after each push and deleted when the PR closes:
+
+```
+build    .github/workflows/preview.yml: the same build as main ( Trivy gate,
+         signed, SBOM and provenance ), into registry.smdoes.eu/raspberry-preview/
+         as pr-<n>-<head sha>, then a comment on the PR with the link
+deploy   previews/: the Flux Operator's ResourceSet lists the labelled PRs
+         every 5 min and keeps a namespace preview-pr-<n> per PR ( quota of
+         1 pod, at most 2 previews ), applied by a ServiceAccount limited to
+         those kinds, not the operator's cluster-admin
+check    image-policies/raspberry-preview.yaml: signed by build-image.yml for
+         a pull request of this repo; a ValidatingAdmissionPolicy refuses
+         preview images in any namespace not labelled smega.eu/preview=true
+edge     a *.smega.eu record to the VPS, which sends pr-*-status hosts to
+         Kong and drops every other unknown host
+```
+
+The preview is the page only, reading the live status API. PRs from forks
+are skipped: GitHub gives them no secrets. The registry deletes preview
+images after 14 days.
+
 ### Delivery metrics (DORA)
 
 The Cluster tab shows the four DORA metrics for status-web, computed by
