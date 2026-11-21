@@ -70,6 +70,28 @@ spec:
         limits.cpu: 300m
         limits.memory: 128Mi
     ---
+    # Like the public namespaces ( deployments/16-network-policies.yaml ):
+    # nothing in or out but Kong's requests. The page needs nothing else;
+    # it calls the status API from the visitor's browser.
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: only-from-kong
+      namespace: preview-pr-<< inputs.id >>
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress, Egress]
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kong
+              podSelector:
+                matchLabels:
+                  app: kong-gateway
+          ports:
+            - { protocol: TCP, port: 80 }
+    ---
     # Copies of the live page's pull secret and incident log.
     apiVersion: v1
     kind: Secret

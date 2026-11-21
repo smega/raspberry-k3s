@@ -1,0 +1,300 @@
+# Default deny in the two public namespaces, then only the traffic each
+# app actually needs ( k3s enforces NetworkPolicy with its built-in
+# kube-router controller ). Without these, any pod could reach any pod:
+# a compromised page could talk to Prometheus, the Kubernetes API or the
+# LAN. Mapped from the running cluster on 2026-11-21:
+#
+#   in   Kong gateways ( kong, app=kong-gateway ) -> the public pages
+#        Flagger's loadtester -> the status-web canary ( smoke test )
+#        Prometheus -> status-api metrics
+#   out  DNS for everyone; Prometheus, Alloy ( traces ), the Kubernetes API
+#        and the internet ( HTTPS only, no private ranges ) per app
+#
+# Kubelet probes come from the node itself, which kube-router always
+# allows.
+
+# ----- public-demo -------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: public-demo
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: public-demo
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: from-kong
+  namespace: public-demo
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [status-web, status-web-primary, status-api, whoami, devlog-web]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kong
+          podSelector:
+            matchLabels:
+              app: kong-gateway
+      ports:
+        - { protocol: TCP, port: 80 }
+        - { protocol: TCP, port: 8080 }
+---
+# The canary's smoke test ( 14-status-web-canary.yaml ) runs in Flagger's
+# loadtester and fetches the new version directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: canary-smoke-test
+  namespace: public-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: status-web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flagger-system
+          podSelector:
+            matchLabels:
+              app: loadtester
+      ports:
+        - { protocol: TCP, port: 80 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: status-api
+  namespace: public-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: status-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # The check results as metrics ( ServiceMonitor status-api ).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - { protocol: TCP, port: 9100 }
+  egress:
+    # Node readings, releases, DORA: PromQL.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alloy
+      ports:
+        - { protocol: TCP, port: 4318 }
+    # Commit times for the lead time ( GitHub API ).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: status-checker
+  namespace: public-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: status-checker
+  policyTypes: [Egress]
+  egress:
+    # The sites it checks and RunGuard, all through Cloudflare.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+      ports:
+        - { protocol: TCP, port: 443 }
+    # The ConfigMap it writes: the API server, after kube-proxy's DNAT.
+    - to:
+        - ipBlock:
+            cidr: 192.168.2.210/32
+      ports:
+        - { protocol: TCP, port: 6443 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alloy
+      ports:
+        - { protocol: TCP, port: 4318 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deploy-freeze
+  namespace: public-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: deploy-freeze
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - ipBlock:
+            cidr: 192.168.2.210/32
+      ports:
+        - { protocol: TCP, port: 6443 }
+---
+# ----- public-dashboard --------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: public-dashboard
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: public-dashboard
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-web
+  namespace: public-dashboard
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard-web
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kong
+          podSelector:
+            matchLabels:
+              app: kong-gateway
+      ports:
+        - { protocol: TCP, port: 80 }
+  egress:
+    # nginx proxies /api/ to the backend.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dashboard-backend
+      ports:
+        - { protocol: TCP, port: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-backend
+  namespace: public-dashboard
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard-backend
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: dashboard-web
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    # The read-only cluster view ( 09-dashboard-readonly-rbac.yaml ).
+    - to:
+        - ipBlock:
+            cidr: 192.168.2.210/32
+      ports:
+        - { protocol: TCP, port: 6443 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - { protocol: TCP, port: 9090 }
+    # Google Cloud APIs ( the GKE side of the dashboard ).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+      ports:
+        - { protocol: TCP, port: 443 }

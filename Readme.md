@@ -286,6 +286,28 @@ kubelet read-only port closed). Falco isn't running: the Raspberry Pi
 kernel has no BTF, so its eBPF driver can't load without being compiled
 for every kernel update.
 
+## Network policies: default deny
+
+Until 2026-11-21 any pod could reach any pod. A test pod labelled like
+the whoami demo, standing in for a compromised page, reached Prometheus,
+Loki, Grafana, the Kubernetes API, a kubelet and the LAN router. Now the
+public namespaces ( `public-demo`, `public-dashboard`, and every PR
+preview ) deny everything by default and allow only what each app needs
+( `deployments/16-network-policies.yaml`, enforced by k3s's built-in
+kube-router ):
+
+```
+in    Kong gateways -> the public pages; Flagger's loadtester -> the canary;
+      Prometheus -> status-api metrics; dashboard-web -> dashboard-backend
+out   DNS for all; per app only Prometheus, Alloy, the API server, and
+      HTTPS to the internet ( private ranges excluded )
+```
+
+The same test pod reaches nothing now, not even the internet; status-api
+reaches exactly Prometheus, Alloy and HTTPS. The site, the checker, the
+error budget policy, scraping, traces and the canary smoke test were each
+checked under the policies before they went into git.
+
 ## Readonly dashboard: what it can and can't see
 
 `public-dashboard-sa` (the dashboard backend's service account) is granted a
