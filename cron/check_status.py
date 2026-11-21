@@ -1,6 +1,8 @@
 import json
 import os
 from datetime import datetime, timezone
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from kubernetes import client, config
@@ -103,6 +105,51 @@ def load_targets():
     return DEFAULT_TARGETS
 
 
+class _AssetLinks(HTMLParser):
+    """Collects <script src> and <link rel=stylesheet href> from a page."""
+
+    def __init__(self):
+        super().__init__()
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "script" and a.get("src"):
+            self.links.append(a["src"])
+        elif tag == "link" and "stylesheet" in (a.get("rel") or "").split() and a.get("href"):
+            self.links.append(a["href"])
+
+
+def missing_asset(resp):
+    """The first script or stylesheet the page can't load, as "asset HTTP 404".
+
+    A single-page app answers 200 with its index.html even when its bundle
+    is gone, and the page is then blank. On 2026-11-21 a 404 for the status
+    page's new bundle stayed at Cloudflare for 4 hours while every check of
+    the page itself passed. Only files on the page's own host are checked:
+    a third-party CDN being down is not this service being down.
+    """
+    if "text/html" not in resp.headers.get("Content-Type", ""):
+        return None
+    parser = _AssetLinks()
+    try:
+        parser.feed(resp.text)
+    except Exception:
+        return None
+    host = urlsplit(resp.url).netloc
+    for link in dict.fromkeys(parser.links):
+        url = urljoin(resp.url, link)
+        if urlsplit(url).netloc != host:
+            continue
+        try:
+            r = requests.get(url, timeout=CHECK_TIMEOUT_SECONDS)
+        except requests.RequestException as e:
+            return f"asset {type(e).__name__}"
+        if r.status_code >= 400:
+            return f"asset HTTP {r.status_code}"
+    return None
+
+
 def _check_one(name, url):
     checked_at = datetime.now(timezone.utc).isoformat()
     started = datetime.now(timezone.utc)
@@ -115,6 +162,9 @@ def _check_one(name, url):
         ok = resp.status_code < 500
         status_code = resp.status_code
         error = None if ok else f"HTTP {status_code}"
+        if ok and resp.status_code < 300:
+            error = missing_asset(resp)
+            ok = error is None
     except requests.RequestException as e:
         latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
         ok = False
