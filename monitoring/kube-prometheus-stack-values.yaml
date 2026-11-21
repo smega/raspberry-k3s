@@ -33,6 +33,22 @@ grafana:
   # leaked into a session log on 2026-11-13 and was rotated with this).
   admin:
     existingSecret: grafana-admin
+  # Requests from measured usage ( 2026-11-21: CPU p95 over 36 h, memory
+  # 7-day peak + ~15% ). Before this, the stack's pods had none, so the
+  # scheduler counted kube-master as nearly empty. Grafana peaked at 635Mi.
+  resources:
+    requests:
+      cpu: 40m
+      memory: 448Mi
+    limits:
+      memory: 896Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 96Mi
+      limits:
+        memory: 192Mi
   # Dashboards/users live in SQLite on this PVC (local-path, 20Gi).
   persistence:
     enabled: true
@@ -100,6 +116,12 @@ prometheus:
     # size cap leaves headroom on the 57 GB stick (PV is 50Gi).
     retention: 30d
     retentionSize: 40GB
+    # Measured: ~120m CPU at p95, up to 1254Mi. A request only: a memory
+    # limit would OOM-kill it into a WAL replay and a gap in every chart.
+    resources:
+      requests:
+        cpu: 150m
+        memory: 1200Mi
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -136,6 +158,13 @@ alertmanager:
     # are shared.
     replicas: 2
     podAntiAffinity: hard
+    # Measured: up to 53Mi; the operator's default request was 200Mi each.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
     podAntiAffinityTopologyKey: kubernetes.io/hostname
     # Secret alertmanager-notify (created by hand, never in git), mounted at
     # /etc/alertmanager/secrets/alertmanager-notify/:
@@ -230,3 +259,26 @@ alertmanager:
             send_resolved: false
     templates:
       - /etc/alertmanager/config/*.tmpl
+
+# Measured 2026-11-21 ( see grafana: above ): up to 81Mi, 79Mi and 27Mi.
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 96Mi
+    limits:
+      memory: 192Mi
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 96Mi
+    limits:
+      memory: 192Mi
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
