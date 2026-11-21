@@ -71,7 +71,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: diagnostics
-          image: registry.smdoes.eu/raspberry/alert-diagnostics:main-1795252297-5f327a6 # {"$imagepolicy": "flux-system:alert-diagnostics"}
+          image: registry.smdoes.eu/raspberry/alert-diagnostics:main-1795287868-0dbad96 # {"$imagepolicy": "flux-system:alert-diagnostics"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
