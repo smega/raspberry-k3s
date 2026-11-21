@@ -109,6 +109,19 @@ GitHub's own `attest-build-provenance` isn't used. A cached rebuild of an
 unchanged image gives the same digest, so the attestations cover every
 tag that points at it.
 
+### What a pull request would change
+
+Every pull request that touches what Flux applies gets one comment, kept
+up to date on each push ( `.github/workflows/flux-diff.yml` ): every
+Flux Kustomization and HelmRelease rendered on main and on the PR
+( flux-local, charts included ), the difference, and how many objects it
+removes. The PR's objects are validated against their schemas first
+( kubeconform, CRDs included ), and a broken one fails the check.
+
+It compares main with the PR, not with the running cluster: `flux diff`
+needs the API server, and CI has no way in. The private repo's
+Kustomizations are skipped.
+
 ### Canary releases
 
 A new status-web image doesn't replace the running one. Flagger
