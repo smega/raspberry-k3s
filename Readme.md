@@ -163,6 +163,24 @@ commit of the image tag, applied by Flux like any other change. The
 services on the VPS don't count; their failures say nothing about this
 cluster's releases. Runbook: `runbooks/DeployFreeze.md`.
 
+### Alerts that arrive with their diagnostics
+
+Every alert that goes to my phone is followed by a quiet second message
+with what I would look at first, so the first minutes of an incident
+start from facts, not from opening laptops:
+
+```
+events       the pod's, workload's or node's Kubernetes events
+logs         its last lines from Loki ( or errors in its namespace )
+last change  its last rollout, the git revision Flux runs, Flux not ready
+SLO          the error budgets, and what else is firing
+```
+
+`alert-diagnostics/` is a small Go service ( standard library only,
+read-only RBAC ) that Alertmanager posts to next to ntfy
+( `monitoring/alert-diagnostics.yaml` ). Separate webhooks: if it is down,
+the alert still arrives, only without the follow-up.
+
 ### Pull request previews
 
 A pull request labelled `preview` that changes `frontend/` gets its own

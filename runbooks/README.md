@@ -7,6 +7,13 @@ link, so an alert arrives with "what now" attached.
 Each page: what fired, what it means for visitors, how to check, how to
 fix, and what happened the last times.
 
+A minute after the alert, a second, quiet notification follows with the
+first things to check, collected automatically by
+[alert-diagnostics](../alert-diagnostics/main.go): the target's Kubernetes
+events, its last log lines ( Loki ), its last rollout and the git revision
+Flux runs, the error budgets, and what else is firing. It is a separate
+webhook, so the alert itself never waits for it or depends on it.
+
 | Alert | Severity | Rule |
 |---|---|---|
 | [StatusSLOFastBurn](StatusSLOFastBurn.md) | critical | `deployments/11-status-slo-alerts.yaml` |
