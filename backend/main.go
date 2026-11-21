@@ -1,3 +1,17 @@
+// status-api serves the status page ( status.smega.eu ) from
+// api-status.smega.eu:
+//
+//	/healthz         liveness, and the canary's smoke test
+//	/api/status      the checker's results, from its ConfigMap
+//	/badge/:slug.svg uptime badges for READMEs
+//	/api/nodes       live readings per Pi ( Prometheus )
+//	/api/release     the last canary release of the page ( Flagger's metrics )
+//	/api/freeze      the error budget policy's deploy freeze
+//	/api/traffic     what visitors got over the last day ( Kong's metrics )
+//	/api/dora        the four DORA metrics
+//
+// and /metrics on :9100 for Prometheus. Released as a canary
+// ( deployments/18-status-api-canary.yaml ).
 package main
 
 import (
