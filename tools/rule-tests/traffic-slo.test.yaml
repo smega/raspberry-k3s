@@ -1,0 +1,63 @@
+# Run with tools/rule-tests/run.sh.
+rule_files: [traffic-slo.rules.yaml]
+evaluation_interval: 1m
+tests:
+  # A real outage: 2 req/min, then 50% 5xx for 20 minutes -> critical.
+  - interval: 1m
+    input_series:
+      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="200",pod="a"}'
+        values: '0+2x60 120+1x30'
+      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="502",pod="a"}'
+        values: '0x60 0+1x30'
+    alert_rule_test:
+      - eval_time: 55m
+        alertname: TrafficErrorsFastBurn
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: TrafficErrorsFastBurn
+        exp_alerts:
+          - exp_labels: {severity: critical, service: httproute.public-demo.whoami.0}
+            exp_annotations:
+              summary: "httproute.public-demo.whoami.0: visitors are getting 5xx errors"
+              description: "httproute.public-demo.whoami.0 is answering visitors with 5xx errors fast enough to use 2% of its 30-day budget in an hour ( SLO 99.5% ), counted from real traffic at Kong, at least 5 failed requests."
+              runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TrafficErrorsFastBurn.md
+  # A quiet hour with one 502 among 5 requests: 20% errors, but 1 request -> nothing.
+  - interval: 1m
+    input_series:
+      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="200",pod="a"}'
+        values: '0x30 1 1 2 2 3 3 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4'
+      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="502",pod="a"}'
+        values: '0x31 1x28'
+    alert_rule_test:
+      - eval_time: 59m
+        alertname: TrafficErrorsFastBurn
+        exp_alerts: []
+  # The counting: 10 errors spread over an hour are 10, not 50.
+  - interval: 1m
+    input_series:
+      - series: 'kong_http_requests_total{service="s",code="502",pod="a"}'
+        values: '0x60 0+1x10 10x60'
+      - series: 'kong_http_requests_total{service="s",code="200",pod="a"}'
+        values: '0+10x130'
+    promql_expr_test:
+      - expr: round(route:kong_errors:1h)
+        eval_time: 85m
+        exp_samples:
+          - labels: '{service="s"}'
+            value: 10
+  # Status page latency: 20% of requests over 250 ms for hours -> warning.
+  - interval: 1m
+    input_series:
+      - series: 'kong_request_latency_ms_count{service="httproute.public-demo.status-web.0",pod="a"}'
+        values: '0+10x400'
+      - series: 'kong_request_latency_ms_bucket{service="httproute.public-demo.status-web.0",pod="a",le="250.0"}'
+        values: '0+8x400'
+    alert_rule_test:
+      - eval_time: 380m
+        alertname: TrafficLatencySLOBurn
+        exp_alerts:
+          - exp_labels: {severity: warning, service: httproute.public-demo.status-web.0}
+            exp_annotations:
+              summary: "httproute.public-demo.status-web.0: too many slow requests"
+              description: "20% of httproute.public-demo.status-web.0's requests were slower than its target ( 250 ms for the page, 2 s for the API; SLO 99% )."
+              runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TrafficLatencySLOBurn.md

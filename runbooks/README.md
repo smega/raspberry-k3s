@@ -20,6 +20,9 @@ webhook, so the alert itself never waits for it or depends on it.
 | [StatusSLOSlowBurn](StatusSLOSlowBurn.md) | warning | `deployments/11-status-slo-alerts.yaml` |
 | [StatusCheckerStale](StatusCheckerStale.md) | critical | `deployments/11-status-slo-alerts.yaml` |
 | [StatusMetricsMissing](StatusMetricsMissing.md) | critical | `deployments/11-status-slo-alerts.yaml` |
+| [TrafficErrorsFastBurn](TrafficErrorsFastBurn.md) | critical | `deployments/17-traffic-slo.yaml` |
+| [TrafficErrorsSlowBurn](TrafficErrorsSlowBurn.md) | warning | `deployments/17-traffic-slo.yaml` |
+| [TrafficLatencySLOBurn](TrafficLatencySLOBurn.md) | warning | `deployments/17-traffic-slo.yaml` |
 | [CertificateExpiresSoon](CertificateExpiresSoon.md) | warning | `deployments/12-cert-expiry.yaml` |
 | [CertificateExpiresVerySoon](CertificateExpiresVerySoon.md) | critical | `deployments/12-cert-expiry.yaml` |
 | [TLSProbeFailing](TLSProbeFailing.md) | warning | `deployments/12-cert-expiry.yaml` |

@@ -1,0 +1,129 @@
+# SLOs from real traffic, next to the checker-based ones in
+# 11-status-slo-alerts.yaml. Those ask "does one request every 5 minutes
+# work"; these count every request visitors made, through Kong's metrics
+# ( kong/metrics.yaml ), per route ( the `service` label,
+# httproute.<namespace>.<route>.<rule> ).
+#
+#   availability  99.5% of requests not 5xx, every public route
+#   latency       99% under 250 ms for the status page, under 2 s for its
+#                 API ( a cold /api/dora pages through GitHub, up to ~20 s )
+#
+# Traffic here is low ( a few requests a minute ), so one 502 in a quiet
+# hour is a 10% error rate. Every alert also needs a minimum number of bad
+# requests, or it would page on single requests. Same multi-window burn
+# rates as the checker SLOs ( Google SRE Workbook, ch. 5 ).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: traffic-slo
+  namespace: public-demo
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: traffic-slo.recording
+      interval: 1m
+      rules:
+        # Requests and 5xx per route, summed over the 4 gateways.
+        - record: route:kong_requests:increase5m
+          expr: sum by (service) (increase(kong_http_requests_total[5m]))
+        - record: route:kong_errors:increase5m
+          expr: sum by (service) (increase(kong_http_requests_total{code=~"5.."}[5m]))
+        # Requests slower than the route's latency target.
+        - record: route:kong_slow:increase5m
+          expr: |
+            sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-web.*"}[5m]))
+              - sum by (service) (increase(kong_request_latency_ms_bucket{service=~"httproute.public-demo.status-web.*", le="250.0"}[5m]))
+            or
+            sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-api.*"}[5m]))
+              - sum by (service) (increase(kong_request_latency_ms_bucket{service=~"httproute.public-demo.status-api.*", le="2000.0"}[5m]))
+        - record: route:kong_latency_counted:increase5m
+          expr: sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-(web|api).*"}[5m]))
+
+    - name: traffic-slo.windows
+      interval: 1m
+      # Ratios over each alert window, from the 5m increases: sums of
+      # increases, not averages of ratios, so quiet and busy minutes count
+      # by their requests.
+      rules:
+        - record: route:kong_error_ratio:5m
+          expr: route:kong_errors:increase5m / route:kong_requests:increase5m
+        - record: route:kong_error_ratio:30m
+          expr: sum_over_time(route:kong_errors:increase5m[30m]) / sum_over_time(route:kong_requests:increase5m[30m])
+        - record: route:kong_error_ratio:1h
+          expr: sum_over_time(route:kong_errors:increase5m[1h]) / sum_over_time(route:kong_requests:increase5m[1h])
+        - record: route:kong_error_ratio:2h
+          expr: sum_over_time(route:kong_errors:increase5m[2h]) / sum_over_time(route:kong_requests:increase5m[2h])
+        - record: route:kong_error_ratio:6h
+          expr: sum_over_time(route:kong_errors:increase5m[6h]) / sum_over_time(route:kong_requests:increase5m[6h])
+        - record: route:kong_error_ratio:1d
+          expr: sum_over_time(route:kong_errors:increase5m[1d]) / sum_over_time(route:kong_requests:increase5m[1d])
+        - record: route:kong_errors:1h
+          expr: sum_over_time(route:kong_errors:increase5m[1h]) / 5
+        - record: route:kong_errors:1d
+          expr: sum_over_time(route:kong_errors:increase5m[1d]) / 5
+        - record: route:kong_slow_ratio:30m
+          expr: sum_over_time(route:kong_slow:increase5m[30m]) / sum_over_time(route:kong_latency_counted:increase5m[30m])
+        - record: route:kong_slow_ratio:2h
+          expr: sum_over_time(route:kong_slow:increase5m[2h]) / sum_over_time(route:kong_latency_counted:increase5m[2h])
+        - record: route:kong_slow_ratio:6h
+          expr: sum_over_time(route:kong_slow:increase5m[6h]) / sum_over_time(route:kong_latency_counted:increase5m[6h])
+        - record: route:kong_slow_ratio:1d
+          expr: sum_over_time(route:kong_slow:increase5m[1d]) / sum_over_time(route:kong_latency_counted:increase5m[1d])
+        - record: route:kong_slow:1d
+          expr: sum_over_time(route:kong_slow:increase5m[1d]) / 5
+
+    - name: traffic-slo.alerts
+      rules:
+        # 14.4x in 1h ( 2% of the 30-day budget ) or 6x in 6h ( 5% ), and at
+        # least 5 failed requests in the last hour.
+        - alert: TrafficErrorsFastBurn
+          expr: |
+            (
+              (route:kong_error_ratio:1h > (14.4 * 0.005) and route:kong_error_ratio:5m > (14.4 * 0.005))
+              or
+              (route:kong_error_ratio:6h > (6 * 0.005) and route:kong_error_ratio:30m > (6 * 0.005))
+            )
+            and route:kong_errors:1h >= 5
+          labels:
+            severity: critical
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TrafficErrorsFastBurn.md
+            summary: "{{ $labels.service }}: visitors are getting 5xx errors"
+            description: >-
+              {{ $labels.service }} is answering visitors with 5xx errors fast
+              enough to use 2% of its 30-day budget in an hour ( SLO 99.5% ),
+              counted from real traffic at Kong, at least 5 failed requests.
+        # 3x in 1 day ( 10% of the budget ), at least 10 failed requests.
+        - alert: TrafficErrorsSlowBurn
+          expr: |
+            route:kong_error_ratio:1d > (3 * 0.005) and route:kong_error_ratio:2h > (3 * 0.005)
+            and route:kong_errors:1d >= 10
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TrafficErrorsSlowBurn.md
+            summary: "{{ $labels.service }}: a steady trickle of 5xx errors"
+            description: >-
+              {{ $labels.service }} answered {{ $value | humanizePercentage }} of
+              requests over the last day with a 5xx ( SLO 99.5% ), at least 10
+              of them.
+        # Latency budget 1%: 6x in 6h or 3x in 1 day, at least 10 slow
+        # requests in a day. A warning: slow is not down.
+        - alert: TrafficLatencySLOBurn
+          expr: |
+            (
+              (route:kong_slow_ratio:6h > (6 * 0.01) and route:kong_slow_ratio:30m > (6 * 0.01))
+              or
+              (route:kong_slow_ratio:1d > (3 * 0.01) and route:kong_slow_ratio:2h > (3 * 0.01))
+            )
+            and route:kong_slow:1d >= 10
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TrafficLatencySLOBurn.md
+            summary: "{{ $labels.service }}: too many slow requests"
+            description: >-
+              {{ $value | humanizePercentage }} of {{ $labels.service }}'s
+              requests were slower than its target ( 250 ms for the page, 2 s for
+              the API; SLO 99% ).
