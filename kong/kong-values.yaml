@@ -9,6 +9,13 @@
 controller:
   ingressController:
     enabled: true
+    # Measured 2026-11-21: ~11m CPU, up to 114Mi; it had no requests.
+    resources:
+      requests:
+        cpu: 15m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
   # Two controllers with leader election: a new gateway pod starts empty
   # and needs a controller to push the routes to it (that was the 404
   # after the master reboot on 2026-11-14).
@@ -99,12 +106,15 @@ gateway:
       nodePort: 30378
     tls:
       enabled: false
+  # Memory from measured usage ( 2026-11-21: up to 403Mi, 79% of the old
+  # 512Mi limit ). CPU unchanged: the request is above the ~40m it uses,
+  # on purpose, every request on the node passes through here.
   resources:
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 640Mi
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 352Mi
 ingressController:
   installCRDs: false
