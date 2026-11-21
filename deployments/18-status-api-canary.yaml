@@ -55,6 +55,10 @@ spec:
       - name: no restarts
         templateRef:
           name: container-restarts
+          namespace: public-demo
+        thresholdRange:
+          max: 0
+        interval: 1m
     webhooks:
       - name: smoke test before traffic
         type: pre-rollout
