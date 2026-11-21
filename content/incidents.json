@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-11-21",
+    "title": "A cached 404 left this page without its script",
+    "impact": "outage",
+    "duration": "about 15 minutes, 06:15 to 06:30 UTC, for visitors served by Cloudflare's London edge",
+    "what": "A new version of this page went out as a canary, so for a few minutes the old and the new version served side by side. A visitor got the new index.html from one and asked the other for the new script, which the old version did not have, so it answered 404. Cloudflare kept that 404 for 4 hours. Once the new version was promoted, every visitor to that edge got a page whose script could not load. I noticed it while checking the release, not from an alert: the status checks only ask for the page itself, which was fine.",
+    "fix": "Error answers from this page now carry Cache-Control: no-store, so no cache keeps them. The fix went out as the next release, whose script has a new name, so the cached 404 was no longer asked for and nothing had to be purged by hand.",
+    "lesson": "A canary release mixes two versions in one visit, and a cache in front can turn a moment of that into hours. Errors should never be cacheable.",
+    "link": "https://github.com/smega/raspberry-k3s/commit/aeece25"
+  },
+  {
     "date": "2026-11-17",
     "title": "Three days of node backups that could not be opened",
     "impact": "none",
