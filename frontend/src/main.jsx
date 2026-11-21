@@ -869,6 +869,55 @@ function LastRelease({ apiBase }) {
   )
 }
 
+// The error budget policy, from status-api's /api/freeze: while a cluster
+// service has spent its 30-day error budget, new versions stop going out.
+function DeployFreeze({ apiBase }) {
+  const [f, setF] = useState(null)
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`${apiBase}/api/freeze`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setF(d))
+        .catch(() => setF(null))
+    }
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => clearInterval(interval)
+  }, [apiBase])
+
+  if (!f) return null
+  const left = f.budgets
+    .map((b) => `${b.service} ${Math.max(0, Math.round(b.remaining * 100))}%`)
+    .join(', ')
+  const policy = (
+    <a
+      href="https://github.com/smega/raspberry-k3s/blob/main/runbooks/DeployFreeze.md"
+      target="_blank"
+      rel="noreferrer"
+      style={{ color: 'inherit' }}
+    >
+      error budget policy
+    </a>
+  )
+  if (f.frozen) {
+    const since = f.since != null ? ` since ${formatBuildTime(new Date(f.since * 1000).toISOString())}` : ''
+    return (
+      <div style={{ marginTop: '6px', fontSize: '12px', color: INK_SECONDARY }}>
+        <span style={{ color: CRITICAL, fontWeight: 600 }}>New versions are frozen{since}.</span>{' '}
+        {f.services.join(' and ')} spent {f.services.length > 1 ? 'their' : 'its'} 30-day error budget, so the{' '}
+        {policy} holds new builds back until it recovers. A hotfix can still go out by hand.
+      </div>
+    )
+  }
+  return (
+    <div style={{ marginTop: '6px', fontSize: '12px', color: INK_MUTED }}>
+      New versions go out by themselves while the cluster's services have error budget left, by the {policy}.
+      {left && <> Left now: {left}.</>}
+    </div>
+  )
+}
+
 function formatDuration(seconds) {
   if (seconds < 90) return `${Math.round(seconds)} s`
   if (seconds < 90 * 60) return `${Math.round(seconds / 60)} min`
@@ -1013,6 +1062,7 @@ function HowItWorksSection({ apiBase }) {
         </div>
         <LastDeploy />
         <LastRelease apiBase={apiBase} />
+        <DeployFreeze apiBase={apiBase} />
       </Card>
     </section>
   )

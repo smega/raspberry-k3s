@@ -87,6 +87,7 @@ func main() {
 	prom := &promClient{base: promURL, http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}}
 	nodes := &nodesCache{prom: prom}
 	release := &releaseCache{prom: prom}
+	freeze := &freezeCache{prom: prom}
 	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}, known: map[string]int64{}}}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
@@ -104,6 +105,16 @@ func main() {
 		if err != nil {
 			log.Printf("could not read the last release: %v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "release info not available"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	router.GET("/api/freeze", func(c *gin.Context) {
+		resp, err := freeze.get(c.Request.Context())
+		if err != nil {
+			log.Printf("could not read the deploy freeze: %v", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "deploy freeze not available"})
 			return
 		}
 		c.JSON(http.StatusOK, resp)

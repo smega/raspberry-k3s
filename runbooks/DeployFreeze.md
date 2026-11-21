@@ -34,6 +34,8 @@ kubectl -n public-demo logs job/$(kubectl -n public-demo get jobs -l batch.kuber
 `smega.eu/frozen-by: error-budget-policy` means the policy set it. Without
 the annotation, someone suspended it by hand, and the policy leaves it alone.
 
+The status page's Cluster tab shows the freeze too, under the last release.
+
 Where the budget went: the service's card on https://status.smega.eu ( the
 red bars and their reasons ), and in Prometheus:
 

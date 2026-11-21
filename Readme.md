@@ -154,6 +154,10 @@ enforce   deploy-freeze CronJob, every 5 min: suspends Flux's image
           automation while the alert fires, resumes it when it stops
 ```
 
+The status page shows it under the last release on the Cluster tab: the
+budget left while deploys run, and when and why they froze while frozen
+( status-api's `/api/freeze`, read from the same alert ).
+
 It only resumes a freeze it set itself ( annotation `smega.eu/frozen-by` ),
 never a suspend made by hand, and if Prometheus can't be asked it changes
 nothing. Only automatic tag updates stop: a hotfix goes out as a hand-made
