@@ -29,6 +29,9 @@ spec:
       - preview
     limit: 2
 ---
+# Two ResourceSets, because the policy-controller resolves the image tag
+# to a digest with the namespace's pull secret: the namespace and its
+# secret have to exist before the Deployment is even checked.
 apiVersion: fluxcd.controlplane.io/v1
 kind: ResourceSet
 metadata:
@@ -84,7 +87,24 @@ spec:
       namespace: preview-pr-<< inputs.id >>
       annotations:
         fluxcd.controlplane.io/copyFrom: public-demo/status-content
-    ---
+---
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: status-web-preview-apps
+  namespace: flux-system
+spec:
+  serviceAccountName: preview-deployer
+  dependsOn:
+    - apiVersion: fluxcd.controlplane.io/v1
+      kind: ResourceSet
+      name: status-web-previews
+      namespace: flux-system
+      ready: true
+  inputsFrom:
+    - kind: ResourceSetInputProvider
+      name: status-web-prs
+  resourcesTemplate: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
