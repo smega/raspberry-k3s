@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - kong.yaml
+  - network-policies.yaml
 configMapGenerator:
   - name: kong-values
     namespace: kong

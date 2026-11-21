@@ -1,0 +1,117 @@
+# Ingress default deny for the log and trace stack. Only who writes or
+# reads it gets in; a compromised pod elsewhere can't read every pod's logs
+# from Loki. Egress stays open: Alloy reads every pod's logs through the
+# API server, and egress rules would add little here.
+#
+#   Alloy 4317/4318  traces from status-api and the status checker
+#   Loki 3100        Alloy ( same namespace ), Grafana, alert-diagnostics
+#   Tempo 3200       Grafana
+#   anything         this namespace itself, Prometheus, and the API server
+#                    ( kubectl proxy, port-forward goes through the kubelet )
+#
+# The API server runs on kube-master: to a pod on another node its
+# requests come from the node address or, over flannel, from 10.42.0.0.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: observability
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: from-namespace-prometheus-apiserver
+  namespace: observability
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+        - ipBlock:
+            cidr: 192.168.2.210/32
+        - ipBlock:
+            cidr: 10.42.0.0/32
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alloy-traces
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: public-demo
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [status-api, status-checker]
+      ports:
+        - { protocol: TCP, port: 4317 }
+        - { protocol: TCP, port: 4318 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: loki-readers
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [grafana]
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: alert-diagnostics
+      ports:
+        - { protocol: TCP, port: 3100 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tempo-readers
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+      ports:
+        - { protocol: TCP, port: 3200 }

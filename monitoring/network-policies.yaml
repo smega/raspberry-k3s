@@ -1,0 +1,96 @@
+# Ingress default deny for the monitoring stack. Egress stays open:
+# Prometheus scrapes every namespace and every node, and the receivers
+# call ntfy and RunGuard.
+#
+#   anything         this namespace itself ( Prometheus, Alertmanager and
+#                    its gossip, Grafana, exporters, alert-diagnostics ) and
+#                    the API server ( the operator's webhook, kubectl proxy )
+#   Prometheus 9090  the apps that query it: status-api and deploy-freeze,
+#                    the read-only dashboard, Flagger's canary analysis,
+#                    kured ( it waits while alerts fire )
+#   Grafana 3000     anyone: it is reached over Tailscale through a
+#                    NodePort, whose source address depends on the node,
+#                    and it has its own login
+#
+# The API server runs on kube-master: to a pod on another node its
+# requests come from the node address or, over flannel, from 10.42.0.0.
+# node-exporter runs in the host network, which NetworkPolicy doesn't see.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: monitoring
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: from-namespace-apiserver
+  namespace: monitoring
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - ipBlock:
+            cidr: 192.168.2.210/32
+        - ipBlock:
+            cidr: 10.42.0.0/32
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-clients
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: public-demo
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [status-api, deploy-freeze]
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: public-dashboard
+          podSelector:
+            matchLabels:
+              app: dashboard-backend
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flagger-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: flagger
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kured
+      ports:
+        - { protocol: TCP, port: 9090 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - { protocol: TCP, port: 3000 }

@@ -10,6 +10,7 @@ resources:
   - maintenance-rules.yaml
   - node-disk-rules.yaml
   - alert-diagnostics.yaml
+  - network-policies.yaml
 configMapGenerator:
   - name: kube-prometheus-stack-values
     namespace: monitoring

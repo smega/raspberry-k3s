@@ -1,0 +1,56 @@
+# Ingress default deny for Kong. The proxy port is public by design; the
+# admin API ( 8444, it can rewrite every route ) only takes the
+# controller's calls.
+#
+#   gateway 8000     anyone: the VPS through the NodePort ( source kept,
+#                    externalTrafficPolicy Local ), k3s's service LB
+#   anything         this namespace itself ( controller -> admin API ), the
+#                    API server ( the controller's validation webhook ) and
+#                    Prometheus ( gateway and controller metrics )
+#
+# The API server runs on kube-master: to a pod on another node its
+# requests come from the node address or, over flannel, from 10.42.0.0.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: kong
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: from-namespace-prometheus-apiserver
+  namespace: kong
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+        - ipBlock:
+            cidr: 192.168.2.210/32
+        - ipBlock:
+            cidr: 10.42.0.0/32
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-proxy
+  namespace: kong
+spec:
+  podSelector:
+    matchLabels:
+      app: kong-gateway
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - { protocol: TCP, port: 8000 }

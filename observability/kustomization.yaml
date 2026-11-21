@@ -9,6 +9,7 @@ resources:
   - loki.yaml
   - tempo.yaml
   - alloy.yaml
+  - network-policies.yaml
 configMapGenerator:
   - name: loki-values
     namespace: observability

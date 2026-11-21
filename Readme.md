@@ -304,7 +304,12 @@ out   DNS for all; per app only Prometheus, Alloy, the API server, and
 ```
 
 The same test pod reaches nothing now, not even the internet; status-api
-reaches exactly Prometheus, Alloy and HTTPS. The site, the checker, the
+reaches exactly Prometheus, Alloy and HTTPS. `monitoring`, `observability` and `kong` deny
+ingress by default too ( their `network-policies.yaml` ): only their own
+pods, Prometheus, the API server and the known clients get in, so a pod
+anywhere else can't read Prometheus, Loki or Alertmanager, or reach Kong's
+admin API. Their egress stays open: Prometheus scrapes every namespace
+and node. The site, the checker, the
 error budget policy, scraping, traces and the canary smoke test were each
 checked under the policies before they went into git.
 
