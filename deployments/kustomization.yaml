@@ -22,3 +22,4 @@ resources:
   - 15-deploy-freeze.yaml
   - 16-network-policies.yaml
   - 17-traffic-slo.yaml
+  - 18-status-api-canary.yaml

@@ -8,9 +8,10 @@ metadata:
   namespace: public-demo
 spec:
   minAvailable: 1
+  # The serving pods: Flagger's copy, as for status-web below.
   selector:
     matchLabels:
-      app: status-api
+      app: status-api-primary
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

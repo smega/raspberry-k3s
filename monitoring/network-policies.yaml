@@ -59,7 +59,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [status-api, deploy-freeze]
+                values: [status-api, status-api-primary, deploy-freeze]
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: public-dashboard

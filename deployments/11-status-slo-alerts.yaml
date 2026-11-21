@@ -15,8 +15,11 @@
 # The short window makes an alert resolve soon after the service recovers.
 # The `release: grafana` labels are what kube-prometheus-stack's Prometheus
 # selects on.
+# A PodMonitor, not a ServiceMonitor: the Services are Flagger's
+# ( 18-status-api-canary.yaml ), and this scrapes the live pods
+# ( status-api-primary ) and, during a release, the candidate's.
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+kind: PodMonitor
 metadata:
   name: status-api
   namespace: public-demo
@@ -24,9 +27,11 @@ metadata:
     release: grafana
 spec:
   selector:
-    matchLabels:
-      app: status-api
-  endpoints:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [status-api, status-api-primary]
+  podMetricsEndpoints:
     - port: metrics
       interval: 30s
       # The metrics carry the checked service's name in `service`; without

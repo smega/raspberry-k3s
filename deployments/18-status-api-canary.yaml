@@ -1,0 +1,78 @@
+# Canary releases for status-api, the same way as status-web
+# ( 14-status-web-canary.yaml ): a new image starts next to the live
+# version ( status-api-primary ), gets a smoke test before any traffic and
+# every 30 seconds after, and takes 10% more of the traffic per step up to
+# half before it's promoted. 3 failed checks roll it back.
+#
+# The smoke test asks what the page needs from the API and checks the
+# answers, not just the status codes: the status data has services, the
+# freeze and node endpoints answer with their fields. Like status-web's,
+# these are synthetic requests to the canary Service: Kong's metrics
+# can't tell which of the two backends answered a visitor.
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: status-api
+  namespace: public-demo
+spec:
+  provider: gatewayapi:v1
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: status-api
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: status-api
+  progressDeadlineSeconds: 300
+  service:
+    port: 80
+    targetPort: 8080
+    # Adds the metrics port ( 9100 ) to the Services too.
+    portDiscovery: true
+    hosts:
+      - api-status.smega.eu
+    gatewayRefs:
+      - name: public-gateway
+        namespace: kong
+        sectionName: http
+    # As before on the plain Service: give up on a gone pod after 2s and
+    # retry the other replica; a kept-alive connection to a dead pod after 5s.
+    primary:
+      annotations:
+        konghq.com/connect-timeout: "2000"
+        konghq.com/read-timeout: "5000"
+    canary:
+      annotations:
+        konghq.com/connect-timeout: "2000"
+        konghq.com/read-timeout: "5000"
+  analysis:
+    interval: 30s
+    threshold: 3
+    stepWeight: 10
+    maxWeight: 50
+    metrics:
+      - name: no restarts
+        templateRef:
+          name: container-restarts
+    webhooks:
+      - name: smoke test before traffic
+        type: pre-rollout
+        url: http://loadtester.flagger-system/
+        timeout: 30s
+        metadata:
+          type: bash
+          cmd: &smoke >-
+            set -o pipefail;
+            base=http://status-api-canary.public-demo;
+            curl -sf --max-time 5 $base/healthz | jq -e '.ok == true' >/dev/null &&
+            curl -sf --max-time 5 $base/api/status | jq -e '.services | length > 0' >/dev/null &&
+            curl -sf --max-time 10 $base/api/freeze | jq -e 'has("frozen")' >/dev/null &&
+            curl -sf --max-time 10 $base/api/nodes | jq -e '.nodes | length > 0' >/dev/null
+      - name: smoke test
+        type: rollout
+        url: http://loadtester.flagger-system/
+        timeout: 30s
+        metadata:
+          type: bash
+          cmd: *smoke

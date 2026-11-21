@@ -53,7 +53,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [status-web, status-web-primary, status-api, whoami, devlog-web]
+        values: [status-web, status-web-primary, status-api, status-api-primary, whoami, devlog-web]
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -76,8 +76,10 @@ metadata:
   namespace: public-demo
 spec:
   podSelector:
-    matchLabels:
-      app: status-web
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [status-web, status-api]
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -89,6 +91,7 @@ spec:
               app: loadtester
       ports:
         - { protocol: TCP, port: 80 }
+        - { protocol: TCP, port: 8080 }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -97,8 +100,10 @@ metadata:
   namespace: public-demo
 spec:
   podSelector:
-    matchLabels:
-      app: status-api
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [status-api, status-api-primary]
   policyTypes: [Ingress, Egress]
   ingress:
     # The check results as metrics ( ServiceMonitor status-api ).

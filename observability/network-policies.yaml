@@ -61,7 +61,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [status-api, status-checker]
+                values: [status-api, status-api-primary, status-checker]
       ports:
         - { protocol: TCP, port: 4317 }
         - { protocol: TCP, port: 4318 }

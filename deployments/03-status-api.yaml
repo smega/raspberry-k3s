@@ -4,7 +4,9 @@ metadata:
   name: status-api
   namespace: public-demo
 spec:
-  replicas: 2
+  # No replicas here: Flagger runs the live version as status-api-primary
+  # and scales this one ( the release candidate ) to zero between releases
+  # ( 18-status-api-canary.yaml ). The HPA below holds the count.
   selector:
     matchLabels:
       app: status-api
@@ -89,28 +91,26 @@ spec:
           configMap:
             name: status-data
 ---
-apiVersion: v1
-kind: Service
+# Two replicas on two Pis at all times, a third under load. Flagger makes a
+# status-api-primary copy of it.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
   name: status-api
   namespace: public-demo
-  annotations:
-    # A pod that's gone (drain, reboot) doesn't answer at all; give up on
-    # it after 2s and let Kong retry the other replica (default: 60s).
-    konghq.com/connect-timeout: "2000"
-    # Same for a kept-alive connection to a pod that died under it (node
-    # crash): no reply, no reset, so only a read timeout ends it. Answers
-    # here are small and fast; after 5s Kong retries the other replica.
-    konghq.com/read-timeout: "5000"
-  labels:
-    app: status-api
 spec:
-  selector:
-    app: status-api
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-    - name: metrics
-      port: 9100
-      targetPort: 9100
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: status-api
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+# The Services ( status-api, -primary, -canary ) are Flagger's, from the
+# Canary in 18-status-api-canary.yaml; the Kong timeouts moved there.
