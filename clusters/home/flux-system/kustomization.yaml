@@ -3,3 +3,43 @@ kind: Kustomization
 resources:
   - gotk-components.yaml  # Flux v2.10.0 install.yaml, pinned
   - gotk-sync.yaml
+# Requests from measured usage ( 2026-11-21: CPU p95 over 36 h, memory
+# 7-day peak + ~15% ): upstream asks 50-100m CPU and 64Mi for each, which
+# reserved ~600m CPU for controllers using 2-35m, and less memory than
+# kustomize- and source-controller actually use. Limits stay upstream's.
+patches:
+  - target: {kind: Deployment, name: helm-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 20m, memory: 160Mi}
+  - target: {kind: Deployment, name: kustomize-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 50m, memory: 192Mi}
+  - target: {kind: Deployment, name: source-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 20m, memory: 224Mi}
+  - target: {kind: Deployment, name: notification-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 10m, memory: 96Mi}
+  - target: {kind: Deployment, name: image-reflector-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 10m, memory: 80Mi}
+  - target: {kind: Deployment, name: image-automation-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 10m, memory: 64Mi}
+  - target: {kind: Deployment, name: source-watcher}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 10m, memory: 64Mi}
