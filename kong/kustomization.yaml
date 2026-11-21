@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - kong.yaml
   - network-policies.yaml
+  - metrics.yaml
 configMapGenerator:
   - name: kong-values
     namespace: kong

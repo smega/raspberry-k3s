@@ -1,0 +1,39 @@
+# Real traffic metrics from the gateways: every request a visitor makes,
+# per route, with its status code and latency. Until 2026-11-21 the only
+# availability numbers came from the status checker's one request per
+# site every 5 minutes; Kong itself wasn't scraped at all.
+#
+# The prometheus plugin, on every route ( global ), exposes them on each
+# gateway's status port ( 8100, /metrics ), which the PodMonitor scrapes.
+# Bandwidth and upstream health metrics stay off: nothing reads them.
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: prometheus
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+plugin: prometheus
+config:
+  status_code_metrics: true
+  latency_metrics: true
+  bandwidth_metrics: false
+  upstream_health_metrics: false
+  per_consumer: false
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kong-gateway
+  namespace: kong
+  labels:
+    release: grafana
+spec:
+  selector:
+    matchLabels:
+      app: kong-gateway
+  podMetricsEndpoints:
+    - port: status
+      path: /metrics
+      interval: 30s
