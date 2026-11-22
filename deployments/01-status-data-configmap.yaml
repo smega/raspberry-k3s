@@ -7,6 +7,14 @@ metadata:
     # Seed only: the status-checker CronJob owns this ConfigMap's data from
     # then on. Without this, every Flux sync would reset the history.
     kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+    # Flagger tracks the ConfigMaps a canary's Deployment mounts: it copies
+    # them to <name>-primary for the live version and starts a new release
+    # whenever one changes. This one changes every 5 minutes, so status-api
+    # was re-released every 5 minutes and served a copy as old as the last
+    # promotion ( found 2026-11-22 ). Untracked, the live pods mount it
+    # directly. ( Set by hand on the live object too: IfNotPresent above
+    # means Flux never updates it. )
+    flagger.app/config-tracking: disabled
 data:
   status-data.json: |
     {
