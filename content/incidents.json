@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-11-22",
+    "title": "The cluster dashboard ran without its backend for four hours",
+    "impact": "outage",
+    "duration": "about 4 hours, 10:55 to 14:44 UTC: the dashboard page loaded, its data didn't",
+    "what": "The day before, the public namespaces got default-deny network policies, mapped from the traffic I could see. The dashboard's backend also keeps its users and sessions in MongoDB Atlas, and that connection wasn't on the list. Nothing failed at first: the running pods kept their open connections. The next morning a rebuilt image started new pods, they couldn't reach Atlas, and they crash-looped. The page itself still answered, so it looked up; every request for data got a 502. The alerts fired, as a set of pod and traffic alerts, while I wasn't looking.",
+    "fix": "The backend may now reach Atlas on its port, outside the private address ranges. The pods started at once.",
+    "lesson": "A network policy is only tested when connections are new. Restart the pods after applying one, or the old connections hide what's missing.",
+    "link": "https://github.com/smega/raspberry-k3s/commit/b2b774f"
+  },
+  {
     "date": "2026-11-21",
     "title": "A cached 404 left this page without its script",
     "impact": "outage",
