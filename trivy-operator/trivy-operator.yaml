@@ -45,3 +45,23 @@ spec:
     - kind: ConfigMap
       name: trivy-operator-values
       valuesKey: values.yaml
+  # The server downloads and unpacks the vulnerability database when it
+  # starts, which takes a Pi longer than the chart's fixed liveness probe
+  # allows ( ~100 s ): it was restarted mid-download, over and over. A
+  # startup probe gives it 10 minutes before the liveness probe counts.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: StatefulSet
+              name: trivy-server
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/startupProbe
+                value:
+                  httpGet:
+                    path: /healthz
+                    port: trivy-http
+                  periodSeconds: 10
+                  failureThreshold: 60
+                  timeoutSeconds: 3
