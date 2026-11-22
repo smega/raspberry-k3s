@@ -65,3 +65,30 @@ spec:
                   periodSeconds: 10
                   failureThreshold: 60
                   timeoutSeconds: 3
+          # Where the server may run. Its database download and unpack
+          # saturate a node's SD card: on 2026-11-22 that starved the
+          # cluster's only CoreDNS on the same node, and DNS failed
+          # cluster-wide for ~15 minutes. So: never with CoreDNS ( required
+          # anti-affinity, which also keeps CoreDNS from moving next to it ),
+          # not on kube-slave2 ( slow card ) or the master ( memory ).
+          - target:
+              kind: StatefulSet
+              name: trivy-server
+            patch: |
+              - op: add
+                path: /spec/template/spec/affinity
+                value:
+                  nodeAffinity:
+                    requiredDuringSchedulingIgnoredDuringExecution:
+                      nodeSelectorTerms:
+                        - matchExpressions:
+                            - key: kubernetes.io/hostname
+                              operator: NotIn
+                              values: [kube-master, kube-slave2]
+                  podAntiAffinity:
+                    requiredDuringSchedulingIgnoredDuringExecution:
+                      - topologyKey: kubernetes.io/hostname
+                        namespaces: [kube-system]
+                        labelSelector:
+                          matchLabels:
+                            k8s-app: kube-dns

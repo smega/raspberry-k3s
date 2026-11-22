@@ -367,8 +367,12 @@ daily against that day's database.
 
 Sized for the Pis: vulnerabilities only, fixable HIGH and CRITICAL only,
 one scan at a time against one Trivy server that holds the database
-( on kube-slave3, in an emptyDir, so no volume pins it to a node's SD
-card ), and scan jobs anywhere but the node with the slow card. The
+( in an emptyDir, so no volume pins it to a node's SD card ), and scan
+jobs anywhere but the node with the slow card. Neither runs next to
+CoreDNS: there is only one, and the first database unpack saturated the
+SD card on its node and starved it, so DNS failed cluster-wide for about
+15 minutes ( 2026-11-22 ). A required anti-affinity keeps them apart in
+both directions. The
 chart's fixed liveness probe killed the server while it was still
 unpacking the database on a Pi, so a post-renderer adds a startup probe.
 

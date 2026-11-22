@@ -23,6 +23,8 @@ operator:
 trivyOperator:
   # Scans pull image layers onto the node's SD card: spread them over the
   # nodes, but not kube-slave2, whose card is already slow.
+  # Nor next to CoreDNS: there is only one, and an SD card saturated by
+  # a scan starved it on 2026-11-22 ( DNS failed cluster-wide for ~15 min ).
   scanJobAffinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -31,6 +33,13 @@ trivyOperator:
               - key: kubernetes.io/hostname
                 operator: NotIn
                 values: [kube-slave2]
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          namespaces: [kube-system]
+          labelSelector:
+            matchLabels:
+              k8s-app: kube-dns
 
 trivy:
   # The database ( ~1 GB unpacked, refreshed daily ) in an emptyDir, not a
@@ -61,11 +70,6 @@ resources:
     memory: 96Mi
   limits:
     memory: 256Mi
-
-# The operator and the Trivy server: on kube-slave3, the node with the
-# best SD card and the most memory to spare.
-nodeSelector:
-  kubernetes.io/hostname: kube-slave3
 
 serviceMonitor:
   enabled: true
