@@ -178,6 +178,11 @@ spec:
   failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
+      # A finished Job goes after 6 hours. Otherwise one failed run stays in
+      # the history and keeps KubeJobFailed firing long after the next runs
+      # succeeded ( a DNS blip on 2026-11-22 kept it up all day ). A real,
+      # repeating failure keeps making new failed Jobs, so it still alerts.
+      ttlSecondsAfterFinished: 21600
       backoffLimit: 1
       template:
         metadata:
