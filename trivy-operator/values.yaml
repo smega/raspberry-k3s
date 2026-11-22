@@ -1,0 +1,73 @@
+# Values for the trivy-operator HelmRelease ( trivy-operator.yaml ).
+operator:
+  # Vulnerabilities only: config audits, RBAC, infra, compliance and
+  # secret scanning would each add their own scan jobs and reports.
+  vulnerabilityScannerEnabled: true
+  vulnerabilityScannerScanOnlyCurrentRevisions: true
+  sbomGenerationEnabled: false
+  configAuditScannerEnabled: false
+  rbacAssessmentScannerEnabled: false
+  infraAssessmentScannerEnabled: false
+  clusterComplianceEnabled: false
+  exposedSecretScannerEnabled: false
+  # A report expires after a day, and the operator scans again: the daily
+  # rescan against that day's database.
+  scannerReportTTL: "24h"
+  # One scan at a time on four Pis.
+  scanJobsConcurrentLimit: 1
+  scanJobTimeout: 10m
+  # One Trivy server holds the database; scan jobs ask it instead of each
+  # downloading it.
+  builtInTrivyServer: true
+
+trivyOperator:
+  # Scans pull image layers onto the node's SD card: spread them over the
+  # nodes, but not kube-slave2, whose card is already slow.
+  scanJobAffinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: [kube-slave2]
+
+trivy:
+  # The database ( ~1 GB unpacked, refreshed daily ) in an emptyDir, not a
+  # PersistentVolume that would pin the server to one node's SD card; a
+  # restart downloads it again ( ~60 MB ).
+  storageClassEnabled: false
+  # Only what can be acted on: a fix exists, and it matters.
+  ignoreUnfixed: true
+  severity: HIGH,CRITICAL
+  resources:
+    requests:
+      cpu: 50m
+      memory: 100M
+    limits:
+      cpu: 500m
+      memory: 500M
+  server:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 384Mi
+      limits:
+        memory: 1Gi
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 96Mi
+  limits:
+    memory: 256Mi
+
+# The operator and the Trivy server: on kube-slave3, the node with the
+# best SD card and the most memory to spare.
+nodeSelector:
+  kubernetes.io/hostname: kube-slave3
+
+serviceMonitor:
+  enabled: true
+  labels:
+    release: grafana

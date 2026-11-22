@@ -1,0 +1,16 @@
+# Trivy Operator, applied by Flux ( clusters/home/trivy-operator.yaml ).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - trivy-operator.yaml
+  - network-policies.yaml
+configMapGenerator:
+  - name: trivy-operator-values
+    namespace: trivy-system
+    files:
+      - values.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled

@@ -1,0 +1,47 @@
+# Trivy Operator: rescans every running image for vulnerabilities once a
+# day. CI scans each of my images when it's built ( build-image.yml ), but
+# an image that was clean two weeks ago can be affected by a CVE published
+# since, and the charts' images ( Kong, Prometheus, Grafana, ... ) were
+# never scanned here at all.
+#
+# Kept small for the Pis ( values.yaml ): vulnerabilities only, fixable
+# HIGH and CRITICAL only, one scan at a time against one Trivy server that
+# holds the database, and each report expires after 24 hours, which is
+# what triggers the daily rescan. Results are VulnerabilityReports and
+# Prometheus metrics ( alerts.yaml ).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: aqua
+  namespace: flux-system
+spec:
+  url: https://aquasecurity.github.io/helm-charts/
+  interval: 12h
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trivy-operator
+  namespace: trivy-system
+spec:
+  releaseName: trivy-operator
+  interval: 1h
+  timeout: 10m
+  chart:
+    spec:
+      chart: trivy-operator
+      version: 0.38.1
+      sourceRef:
+        kind: HelmRepository
+        name: aqua
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  valuesFrom:
+    - kind: ConfigMap
+      name: trivy-operator-values
+      valuesKey: values.yaml

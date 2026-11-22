@@ -1,0 +1,35 @@
+# Ingress default deny, like monitoring/observability/kong: scan jobs talk
+# to the Trivy server here, Prometheus reads the operator's metrics, and
+# the API server reaches pods from the master's address or its flannel
+# address. Egress stays open: scans pull image layers from every registry
+# the cluster uses, and the server downloads the vulnerability database.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: trivy-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: from-namespace-prometheus-apiserver
+  namespace: trivy-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+        - ipBlock:
+            cidr: 192.168.2.210/32
+        - ipBlock:
+            cidr: 10.42.0.0/32
