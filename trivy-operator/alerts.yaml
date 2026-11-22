@@ -1,0 +1,50 @@
+# Alerts on the daily rescans ( trivy-operator.yaml ). Reports hold fixable
+# HIGH and CRITICAL vulnerabilities only.
+#
+#   ImageVulnerabilityFixable       one of my images ( registry.smdoes.eu/
+#                                   raspberry/ ): a rebuild or a dependency
+#                                   bump fixes it, so it's worth a ping
+#   ThirdPartyImageCriticalFixable  a chart's image: only an upstream
+#                                   release fixes it, and Renovate opens
+#                                   that PR anyway; info, not paged
+#
+# `for: 1h`: a report is replaced while its image is rescanned, which
+# shouldn't count as news.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: image-vulnerabilities
+  namespace: trivy-system
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: image-vulnerabilities
+      rules:
+        - alert: ImageVulnerabilityFixable
+          expr: |
+            max by (namespace, image_repository, image_tag) (
+              trivy_image_vulnerabilities{image_registry="registry.smdoes.eu", image_repository=~"raspberry/.*", severity=~"High|Critical"}
+            ) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/ImageVulnerabilityFixable.md
+            summary: "{{ $labels.image_repository }} has fixable HIGH/CRITICAL vulnerabilities"
+            description: >-
+              {{ $labels.image_repository }}:{{ $labels.image_tag }} ( running in
+              {{ $labels.namespace }} ) has {{ $value }} fixable HIGH or CRITICAL
+              vulnerabilities in today's scan. A rebuild or a dependency bump
+              fixes them.
+        - alert: ThirdPartyImageCriticalFixable
+          expr: |
+            max by (namespace, image_registry, image_repository, image_tag) (
+              trivy_image_vulnerabilities{image_registry!="registry.smdoes.eu", severity="Critical"}
+            ) > 0
+          for: 1h
+          labels:
+            severity: info
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/ImageVulnerabilityFixable.md
+            summary: "{{ $labels.image_repository }} ( third party ) has fixable CRITICAL vulnerabilities"

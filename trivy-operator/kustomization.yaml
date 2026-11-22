@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - trivy-operator.yaml
   - network-policies.yaml
+  - alerts.yaml
 configMapGenerator:
   - name: trivy-operator-values
     namespace: trivy-system
