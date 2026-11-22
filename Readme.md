@@ -356,6 +356,30 @@ percentage of them. CoreDNS and metrics-server are k3s's own manifests.
 The Kong gateways rolled through the change with 0 failed requests
 ( 265, one a second, through Cloudflare ).
 
+## Every running image, rescanned daily
+
+CI scans each of my images when it's built, but an image that was clean
+two weeks ago can be hit by a CVE published since, and the charts' images
+( Kong, Prometheus, Grafana, ... ) were never scanned here at all. The
+Trivy Operator ( `trivy-operator/` ) scans every running image, current
+revisions only, and lets each report expire after a day, so it rescans
+daily against that day's database.
+
+Sized for the Pis: vulnerabilities only, fixable HIGH and CRITICAL only,
+one scan at a time against one Trivy server that holds the database
+( on kube-slave3, in an emptyDir, so no volume pins it to a node's SD
+card ), and scan jobs anywhere but the node with the slow card. The
+chart's fixed liveness probe killed the server while it was still
+unpacking the database on a Pi, so a post-renderer adds a startup probe.
+
+`ImageVulnerabilityFixable` warns when one of my images has a fixable
+HIGH or CRITICAL ( a rebuild or a bump fixes it ); a chart's image with a
+fixable CRITICAL is only an info alert, since only an upstream release
+fixes it and Renovate opens that PR. The first scan found 5 HIGH in the
+status checker, partly inside pip's own vendored packages ( pip is gone
+from that image now ), and an Alpine libxml2 in two web images; all
+fixed before the alert went live.
+
 ## Network policies: default deny
 
 Until 2026-11-21 any pod could reach any pod. A test pod labelled like
