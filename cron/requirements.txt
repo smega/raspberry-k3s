@@ -3,3 +3,7 @@ requests==2.32.3
 opentelemetry-sdk==1.45.2
 opentelemetry-exporter-otlp-proto-http==1.45.2
 opentelemetry-instrumentation-requests==0.66b2
+# Floors for transitive packages with fixed HIGH vulnerabilities ( Trivy
+# Operator, 2026-11-22 ), until the direct dependencies pull them in.
+urllib3>=2.8.0
+msgpack>=1.2.3
