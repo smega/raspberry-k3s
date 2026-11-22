@@ -303,3 +303,12 @@ spec:
             except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
       ports:
         - { protocol: TCP, port: 443 }
+    # MongoDB Atlas ( users and sessions, MONGO_URI ). Missed on 2026-11-21:
+    # the running pods kept their open connections, and the backend only
+    # crash-looped once new pods started the next day.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+      ports:
+        - { protocol: TCP, port: 27017 }
