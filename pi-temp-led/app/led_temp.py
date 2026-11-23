@@ -10,7 +10,6 @@ per node, each driving its own physically-attached LED.
 
 import os
 import signal
-import sys
 import time
 
 import RPi.GPIO as GPIO
@@ -127,7 +126,10 @@ def main():
         green_pwm.stop()
         blue_pwm.stop()
         GPIO.cleanup()
-        sys.exit(0)
+        # Not sys.exit: at interpreter exit each PWM's __del__ calls stop()
+        # again on the chip cleanup() just closed, and logs a TypeError
+        # traceback on every pod shutdown.
+        os._exit(0)
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
