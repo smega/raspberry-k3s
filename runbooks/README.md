@@ -38,6 +38,7 @@ webhook, so the alert itself never waits for it or depends on it.
 | [DeployFreeze](DeployFreeze.md) | warning | `deployments/15-deploy-freeze.yaml` |
 | [NodeCordonedTooLong](NodeCordonedTooLong.md) | warning | `monitoring/maintenance-rules.yaml` |
 | [NodeRootDiskFilling](NodeRootDiskFilling.md) | warning | `monitoring/node-disk-rules.yaml` |
+| [NodeCannotStartContainers](NodeCannotStartContainers.md) | warning | `monitoring/node-runtime-rules.yaml` |
 | [ClusterDNSDown](ClusterDNSDown.md) | critical | `monitoring/dns-probe.yaml` |
 | [ClusterDNSDegraded](ClusterDNSDown.md) | warning | `monitoring/dns-probe.yaml` |
 | [ExternalDNSFailing](ClusterDNSDown.md) | warning | `monitoring/dns-probe.yaml` |

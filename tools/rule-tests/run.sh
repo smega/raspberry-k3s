@@ -13,6 +13,7 @@ yaml.safe_dump({'groups': d['spec']['groups']}, open(sys.argv[2], 'w'), sort_key
 }
 extract ../../deployments/17-traffic-slo.yaml traffic-slo.rules.yaml
 extract ../../monitoring/release-rate-rules.yaml release-rate.rules.yaml
+extract ../../monitoring/node-runtime-rules.yaml node-runtime.rules.yaml
 docker run --rm -v "$PWD:/t" -w /t --entrypoint promtool quay.io/prometheus/prometheus:v3.5.0 \
-  test rules traffic-slo.test.yaml release-rate.test.yaml
-rm -f traffic-slo.rules.yaml release-rate.rules.yaml
+  test rules traffic-slo.test.yaml release-rate.test.yaml node-runtime.test.yaml
+rm -f traffic-slo.rules.yaml release-rate.rules.yaml node-runtime.rules.yaml

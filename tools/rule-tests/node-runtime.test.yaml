@@ -1,0 +1,24 @@
+# Run with tools/rule-tests/run.sh.
+rule_files: [node-runtime.rules.yaml]
+evaluation_interval: 1m
+tests:
+  # 3 failed creates a minute ( 30 per 10 min ) for 25 minutes -> warning
+  # after 10 minutes of it; a single failure now and then -> nothing.
+  - interval: 1m
+    input_series:
+      - series: 'kubelet_runtime_operations_errors_total{node="kube-slave2",operation_type="create_container"}'
+        values: '0x10 0+3x25'
+      - series: 'kubelet_runtime_operations_errors_total{node="kube-slave1",operation_type="create_container"}'
+        values: '0x10 1x10 2x15'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: NodeCannotStartContainers
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: NodeCannotStartContainers
+        exp_alerts:
+          - exp_labels: {severity: warning, node: kube-slave2}
+            exp_annotations:
+              summary: "kube-slave2 can't start containers ( 30 runtime errors in 10 minutes )"
+              description: "The container runtime on kube-slave2 keeps failing to create containers or pod sandboxes. The node may still be Ready, so its pods aren't moved: whatever runs there is down. Drain it."
+              runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeCannotStartContainers.md

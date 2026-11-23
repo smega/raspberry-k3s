@@ -1,0 +1,35 @@
+# A node that is Ready but can't start containers. On 2026-11-23, after
+# a node-crash game day, kube-slave2's container runtime couldn't create
+# any container within kubelet's deadline for 1.5 hours ( a saturated SD
+# card ): all its pods stayed in CreateContainerError, the node stayed
+# Ready, so nothing was moved, and no alert fired. kube-state-metrics,
+# which would show the waiting pods, ran on that node too.
+#
+# So this uses kubelet's own counter, scraped from each kubelet: it
+# doesn't depend on any pod. Over the week before, every node had zero
+# create_container errors; that morning kube-slave2 had up to 455 per
+# 10 minutes.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-runtime
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: node-runtime
+      rules:
+        - alert: NodeCannotStartContainers
+          expr: >-
+            sum by (node) (increase(kubelet_runtime_operations_errors_total{operation_type=~"create_container|run_podsandbox"}[10m])) > 10
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeCannotStartContainers.md
+            summary: "{{ $labels.node }} can't start containers ( {{ $value | humanize }} runtime errors in 10 minutes )"
+            description: >-
+              The container runtime on {{ $labels.node }} keeps failing to
+              create containers or pod sandboxes. The node may still be Ready,
+              so its pods aren't moved: whatever runs there is down. Drain it.

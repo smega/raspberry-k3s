@@ -269,6 +269,21 @@ prometheusOperator:
     limits:
       memory: 192Mi
 kube-state-metrics:
+  # Most Kubernetes alerts read its metrics, and it runs once: two replicas
+  # would export every series twice and double the stack's sum() rules.
+  # So it stays single, but never on kube-slave2 ( slow 2016 SD card ): on
+  # 2026-11-23 that node couldn't start containers for 1.5 h, kube-state-
+  # metrics with it, and the alerts that would have shown it went blind.
+  # NodeCannotStartContainers ( node-runtime-rules.yaml ) reads kubelet
+  # directly, so it doesn't depend on this pod.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: [kube-slave2]
   resources:
     requests:
       cpu: 10m
