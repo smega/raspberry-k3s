@@ -1,14 +1,18 @@
 #!/bin/sh
 # Unit tests for the PrometheusRules ( promtool, in the Prometheus image ).
-# Each <name>.test.yaml tests deployments' <name> rule groups, extracted
-# from the PrometheusRule into <name>.rules.yaml first.
+# Each <name>.test.yaml tests the rule groups of one PrometheusRule,
+# extracted into <name>.rules.yaml first.
 set -eu
 cd "$(dirname "$0")"
-python3 -c "
-import yaml
-d = yaml.safe_load(open('../../deployments/17-traffic-slo.yaml'))
-yaml.safe_dump({'groups': d['spec']['groups']}, open('traffic-slo.rules.yaml', 'w'), sort_keys=False)
-"
+extract() {
+  python3 -c "
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+yaml.safe_dump({'groups': d['spec']['groups']}, open(sys.argv[2], 'w'), sort_keys=False)
+" "$1" "$2"
+}
+extract ../../deployments/17-traffic-slo.yaml traffic-slo.rules.yaml
+extract ../../monitoring/release-rate-rules.yaml release-rate.rules.yaml
 docker run --rm -v "$PWD:/t" -w /t --entrypoint promtool quay.io/prometheus/prometheus:v3.5.0 \
-  test rules traffic-slo.test.yaml
-rm -f traffic-slo.rules.yaml
+  test rules traffic-slo.test.yaml release-rate.test.yaml
+rm -f traffic-slo.rules.yaml release-rate.rules.yaml

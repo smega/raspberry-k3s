@@ -1,0 +1,44 @@
+# Unusually many releases. Every rollout of a Deployment makes a new
+# ReplicaSet, so new ReplicaSets per hour is a release count that works
+# for anything: Flux, Flagger, a hand-made `kubectl rollout restart`.
+#
+# Why: on 2026-11-21 Flagger re-released status-api every 5 minutes for
+# 16 hours ( it tracked a ConfigMap the checker rewrites ). Every rollout
+# succeeded, so no other alert fired. This one would have fired in the
+# first hour.
+#
+# The count can't go above revisionHistoryLimit + 1 ( 11 by default ):
+# older ReplicaSets are deleted. A normal busy hour is 1-4; the week
+# before this rule, only that bug ( 9-11 an hour ) and the 11-19 switch
+# to Flagger ( 10 in under an hour ) went above 5.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: release-rate
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: release-rate
+      rules:
+        - record: deployment:replicasets_created:1h
+          expr: >-
+            count by (namespace, owner_name) (
+              max by (namespace, replicaset) (time() - kube_replicaset_created < 3600)
+              * on (namespace, replicaset) group_left (owner_name)
+              max by (namespace, replicaset, owner_name) (kube_replicaset_owner{owner_kind="Deployment"})
+            )
+        - alert: UnusualReleaseRate
+          expr: deployment:replicasets_created:1h > 5
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/UnusualReleaseRate.md
+            summary: "{{ $labels.namespace }}/{{ $labels.owner_name }}: {{ $value }} releases in the last hour"
+            description: >-
+              {{ $labels.owner_name }} got {{ $value }} new ReplicaSets in an
+              hour, for 30 minutes now. A normal hour has 1-4. Something keeps
+              changing its pod template: a controller loop ( Flagger, Flux,
+              an image automation ), not a person.

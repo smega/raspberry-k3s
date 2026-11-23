@@ -29,6 +29,7 @@ webhook, so the alert itself never waits for it or depends on it.
 | [TLSProbeFailing](TLSProbeFailing.md) | warning | `deployments/12-cert-expiry.yaml` |
 | [CanaryRolledBack](CanaryRolledBack.md) | warning | `flagger/alerts.yaml` |
 | [CanaryStuck](CanaryStuck.md) | warning | `flagger/alerts.yaml` |
+| [UnusualReleaseRate](UnusualReleaseRate.md) | warning | `monitoring/release-rate-rules.yaml` |
 | [DeployFreeze](DeployFreeze.md) | warning | `deployments/15-deploy-freeze.yaml` |
 | [NodeCordonedTooLong](NodeCordonedTooLong.md) | warning | `monitoring/maintenance-rules.yaml` |
 | [NodeRootDiskFilling](NodeRootDiskFilling.md) | warning | `monitoring/node-disk-rules.yaml` |

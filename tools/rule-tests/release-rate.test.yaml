@@ -1,0 +1,68 @@
+# Run with tools/rule-tests/run.sh.
+rule_files: [release-rate.rules.yaml]
+evaluation_interval: 1m
+tests:
+  # Six new ReplicaSets of one Deployment within an hour, for 30 minutes -> warning.
+  # Five of another one -> nothing.
+  - interval: 1m
+    input_series:
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-api-primary-0"}'
+        values: '0x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-api-primary-0",owner_kind="Deployment",owner_name="status-api-primary"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-api-primary-1"}'
+        values: '60x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-api-primary-1",owner_kind="Deployment",owner_name="status-api-primary"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-api-primary-2"}'
+        values: '120x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-api-primary-2",owner_kind="Deployment",owner_name="status-api-primary"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-api-primary-3"}'
+        values: '180x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-api-primary-3",owner_kind="Deployment",owner_name="status-api-primary"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-api-primary-4"}'
+        values: '240x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-api-primary-4",owner_kind="Deployment",owner_name="status-api-primary"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-api-primary-5"}'
+        values: '300x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-api-primary-5",owner_kind="Deployment",owner_name="status-api-primary"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-web-0"}'
+        values: '0x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-web-0",owner_kind="Deployment",owner_name="status-web"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-web-1"}'
+        values: '60x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-web-1",owner_kind="Deployment",owner_name="status-web"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-web-2"}'
+        values: '120x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-web-2",owner_kind="Deployment",owner_name="status-web"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-web-3"}'
+        values: '180x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-web-3",owner_kind="Deployment",owner_name="status-web"}'
+        values: '1x90'
+      - series: 'kube_replicaset_created{namespace="public-demo",replicaset="status-web-4"}'
+        values: '240x90'
+      - series: 'kube_replicaset_owner{namespace="public-demo",replicaset="status-web-4",owner_kind="Deployment",owner_name="status-web"}'
+        values: '1x90'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: UnusualReleaseRate
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: UnusualReleaseRate
+        exp_alerts:
+          - exp_labels: {severity: warning, namespace: public-demo, owner_name: status-api-primary}
+            exp_annotations:
+              summary: "public-demo/status-api-primary: 6 releases in the last hour"
+              description: "status-api-primary got 6 new ReplicaSets in an hour, for 30 minutes now. A normal hour has 1-4. Something keeps changing its pod template: a controller loop ( Flagger, Flux, an image automation ), not a person."
+              runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/UnusualReleaseRate.md
+      # An hour after the last one was created, it's quiet again.
+      - eval_time: 75m
+        alertname: UnusualReleaseRate
+        exp_alerts: []

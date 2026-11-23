@@ -8,6 +8,7 @@ resources:
   - kube-prometheus-stack.yaml
   - blackbox.yaml
   - maintenance-rules.yaml
+  - release-rate-rules.yaml
   - node-disk-rules.yaml
   - alert-diagnostics.yaml
   - network-policies.yaml
