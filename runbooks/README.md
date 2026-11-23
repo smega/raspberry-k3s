@@ -26,6 +26,8 @@ webhook, so the alert itself never waits for it or depends on it.
 | [ImageVulnerabilityFixable](ImageVulnerabilityFixable.md) | warning ( info for third-party images ) | `trivy-operator/alerts.yaml` |
 | [CertificateExpiresSoon](CertificateExpiresSoon.md) | warning | `deployments/12-cert-expiry.yaml` |
 | [CertificateExpiresVerySoon](CertificateExpiresVerySoon.md) | critical | `deployments/12-cert-expiry.yaml` |
+| [CredentialExpiresSoon](CredentialExpiresSoon.md) | warning | the private repo ( credentials inventory ) |
+| [CredentialExpiresVerySoon](CredentialExpiresSoon.md) | critical | the private repo ( credentials inventory ) |
 | [TLSProbeFailing](TLSProbeFailing.md) | warning | `deployments/12-cert-expiry.yaml` |
 | [CanaryRolledBack](CanaryRolledBack.md) | warning | `flagger/alerts.yaml` |
 | [CanaryStuck](CanaryStuck.md) | warning | `flagger/alerts.yaml` |
