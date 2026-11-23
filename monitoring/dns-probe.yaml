@@ -1,0 +1,95 @@
+# DNS from inside the cluster, every 30 seconds, through the kube-dns
+# Service like any pod ( 10.43.0.10, k3s's fixed cluster DNS address; a
+# name would need DNS to find DNS ). Two names: one CoreDNS answers itself,
+# one it forwards upstream ( the router, then the ISP ), so the alerts can
+# tell "CoreDNS is down" from "the internet's DNS is down".
+#
+# Why: on 2026-11-22 the cluster's only CoreDNS was starved by a Trivy
+# scan on its node and DNS failed everywhere for ~15 minutes; the only
+# signals were second-order ( Flux errors, a restarted pod ). Logs can't
+# carry this alert: most apps don't log a failed lookup.
+#
+# Known: on some nights at about 04:00 UTC the upstream fails for ~30 s
+# ( 2026-11-21 and 11-23 ); the external alert waits 5 minutes for that.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: dns-cluster
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  jobName: dns-cluster
+  interval: 30s
+  module: dns_cluster
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - 10.43.0.10:53
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: dns-external
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  jobName: dns-external
+  interval: 30s
+  module: dns_external
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - 10.43.0.10:53
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dns
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: dns
+      rules:
+        - alert: ClusterDNSDown
+          expr: max_over_time(probe_success{job="dns-cluster"}[2m]) == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/ClusterDNSDown.md
+            summary: "Cluster DNS is down: no lookup has worked for 3 minutes"
+            description: >-
+              Every lookup of a cluster name through the kube-dns Service
+              failed for 3 minutes. Pods can't find each other or anything
+              outside; new connections fail everywhere.
+        - alert: ClusterDNSDegraded
+          expr: avg_over_time(probe_success{job="dns-cluster"}[10m]) < 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/ClusterDNSDown.md
+            summary: "Cluster DNS: {{ $value | humanizePercentage }} of lookups worked in the last 10 minutes"
+            description: >-
+              Some lookups of a cluster name fail: one CoreDNS replica is
+              unhealthy or overloaded, or its node is.
+        - alert: ExternalDNSFailing
+          expr: avg_over_time(probe_success{job="dns-external"}[5m]) < 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/ClusterDNSDown.md
+            summary: "Outside names don't resolve from the cluster"
+            description: >-
+              CoreDNS answers cluster names but most lookups of github.com
+              fail: the upstream ( the router or the ISP's DNS ) is down.
+              Flux, image pulls and the checker's outside checks fail.

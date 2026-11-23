@@ -1,5 +1,6 @@
 # Values for the `blackbox` release (prometheus-blackbox-exporter), used for
-# TLS certificate expiry probes (deployments/12-cert-expiry.yaml). Applied by
+# TLS certificate expiry probes (deployments/12-cert-expiry.yaml) and the
+# DNS probes (monitoring/dns-probe.yaml). Applied by
 # Flux via monitoring/blackbox.yaml.
 #
 # Probes are Probe objects (prometheus-operator), not chart-managed
@@ -38,6 +39,26 @@ config:
           - expect: "^220 "
           - starttls: true
           - send: "QUIT\r"
+    # DNS as every pod sees it ( monitoring/dns-probe.yaml ): a cluster
+    # name, and an outside name that CoreDNS forwards upstream.
+    dns_cluster:
+      prober: dns
+      timeout: 3s
+      dns:
+        query_name: kubernetes.default.svc.cluster.local
+        query_type: A
+        transport_protocol: udp
+        preferred_ip_protocol: ip4
+        valid_rcodes: [NOERROR]
+    dns_external:
+      prober: dns
+      timeout: 3s
+      dns:
+        query_name: github.com
+        query_type: A
+        transport_protocol: udp
+        preferred_ip_protocol: ip4
+        valid_rcodes: [NOERROR]
 
 serviceMonitor:
   enabled: false

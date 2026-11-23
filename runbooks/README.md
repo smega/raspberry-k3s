@@ -36,6 +36,9 @@ webhook, so the alert itself never waits for it or depends on it.
 | [DeployFreeze](DeployFreeze.md) | warning | `deployments/15-deploy-freeze.yaml` |
 | [NodeCordonedTooLong](NodeCordonedTooLong.md) | warning | `monitoring/maintenance-rules.yaml` |
 | [NodeRootDiskFilling](NodeRootDiskFilling.md) | warning | `monitoring/node-disk-rules.yaml` |
+| [ClusterDNSDown](ClusterDNSDown.md) | critical | `monitoring/dns-probe.yaml` |
+| [ClusterDNSDegraded](ClusterDNSDown.md) | warning | `monitoring/dns-probe.yaml` |
+| [ExternalDNSFailing](ClusterDNSDown.md) | warning | `monitoring/dns-probe.yaml` |
 | [SDCardSlowing](SDCardSlowing.md) | warning | `monitoring/sd-card-health.yaml` |
 | [SDCardKernelErrors](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |
 | [NodeRootFilesystemReadOnly](SDCardKernelErrors.md) | critical | `monitoring/sd-card-health.yaml` |

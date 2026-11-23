@@ -10,6 +10,7 @@ resources:
   - maintenance-rules.yaml
   - release-rate-rules.yaml
   - sd-card-health.yaml
+  - dns-probe.yaml
   - node-disk-rules.yaml
   - alert-diagnostics.yaml
   - network-policies.yaml
