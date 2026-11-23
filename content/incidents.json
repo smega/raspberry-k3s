@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-11-23",
+    "title": "This page showed 95-minute-old results after a game day",
+    "impact": "outage",
+    "duration": "about 95 minutes, 07:05 to 08:40 UTC: the page answered, its check results stopped at 07:05",
+    "what": "I crashed one of the four Pis on purpose, to test that DNS keeps working with the second DNS server I had added that morning. DNS passed. The Pi didn't: when it came back, its old, slow SD card was saturated, and the container runtime couldn't start anything in time. Every pod on it stayed in an error state while the node reported itself healthy, so Kubernetes moved nothing away. The next run of the status checker was scheduled there and hung, and the checker never runs twice at once, so no further check ran. The sites themselves kept answering from their other copies: not one failed request. The stale-data alert fired; nothing told me why, because the service that reports pod states ran on the same Pi.",
+    "fix": "Moving everything off that Pi and rebooting it cleared it, and its card was fast again afterwards. A new alert now reads the node's own count of failed container starts, which doesn't depend on any pod; the pod-state service no longer runs on the Pi with the slow card; and the game-day script now calls a run that never recovers a failure, instead of a pass.",
+    "lesson": "A node can be Ready and useless at the same time. Kubernetes moves pods off a node that stops reporting, not off one that reports fine and can't do anything.",
+    "link": "https://github.com/smega/raspberry-k3s/commit/e8c03e8"
+  },
+  {
     "date": "2026-11-22",
     "title": "The cluster dashboard ran without its backend for four hours",
     "impact": "outage",
