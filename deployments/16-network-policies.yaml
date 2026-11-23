@@ -204,6 +204,41 @@ spec:
       ports:
         - { protocol: TCP, port: 6443 }
 ---
+# The monthly game day ( 20-game-day.yaml ): Prometheus for its
+# guardrails, the API server to kill a pod, Kong's proxy to watch the
+# sites the way the VPS reaches them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: game-day
+  namespace: public-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: game-day
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - ipBlock:
+            cidr: 192.168.2.210/32
+      ports:
+        - { protocol: TCP, port: 6443 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kong
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
 # ----- public-dashboard --------------------------------------------------
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

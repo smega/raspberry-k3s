@@ -24,3 +24,4 @@ resources:
   - 17-traffic-slo.yaml
   - 18-status-api-canary.yaml
   - 19-coredns.yaml
+  - 20-game-day.yaml

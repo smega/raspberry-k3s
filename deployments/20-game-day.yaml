@@ -1,0 +1,359 @@
+# Scheduled game day: on the first Tuesday of every month at 10:30 UTC,
+# kill one random pod of a public site without any grace period ( a
+# crash, not a shutdown ) and watch every site through Kong for 3
+# minutes. Pass = not one failed request. The hand-run game days
+# ( pod-kill, drain, node-crash, rollback ) showed what breaks; this keeps
+# checking that it stays fixed after every change since.
+#
+# Guardrails, any one and it skips ( and says why in its log ):
+#   - an alert is firing ( warning or critical: the freeze is one ), or a
+#     node is cordoned
+#   - a canary analysis is running
+#   - a target isn't at full strength, or has fewer than 2 replicas
+#
+# Results:
+#   - each run appends one line to the ConfigMap game-day-log
+#     ( kubectl -n public-demo get cm game-day-log -o jsonpath='{.data.results}' )
+#   - a FAIL, or no recovery within 5 minutes, fails the Job, so
+#     KubeJobFailed reaches the phone
+#
+# Check the guardrails without killing anything: the same, with DRY_RUN=1
+# as well ( sed 's/value: "0"/value: "1"/g' sets both ).
+# Run it now ( FORCE=1 skips the first-Tuesday check, not the guardrails ):
+#   kubectl -n public-demo create job --from=cronjob/game-day game-day-manual \
+#     --dry-run=client -o yaml | sed 's/value: "0"/value: "1"/' | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: game-day
+  namespace: public-demo
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: game-day
+  namespace: public-demo
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+  - apiGroups: [flagger.app]
+    resources: [canaries]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [game-day-log]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: game-day
+  namespace: public-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: game-day
+subjects:
+  - kind: ServiceAccount
+    name: game-day
+    namespace: public-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: game-day
+  namespace: public-dashboard
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: game-day
+  namespace: public-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: game-day
+subjects:
+  - kind: ServiceAccount
+    name: game-day
+    namespace: public-demo
+---
+# The log. Flux creates it once and never touches it again: the Job owns
+# its contents.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: game-day-log
+  namespace: public-demo
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  results: |
+    # when ( UTC ) | victim | verdict | failed requests / total | recovery
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: game-day
+  namespace: public-demo
+data:
+  game_day.py: |
+    """Monthly game day: kill one random public pod, watch the sites.
+
+    Standard library only: it runs on the status-checker image.
+    """
+    import datetime
+    import json
+    import os
+    import random
+    import ssl
+    import sys
+    import time
+    import urllib.parse
+    import urllib.request
+
+    PROMETHEUS = os.environ["PROMETHEUS_URL"]
+    KONG = os.environ.get("KONG_URL", "http://kong-gateway-proxy.kong.svc")
+    FORCE = os.environ.get("FORCE") == "1"
+    DRY_RUN = os.environ.get("DRY_RUN") == "1"  # guardrails and one probe round, no kill
+    WATCH_SECONDS = 180
+    RECOVERY_SECONDS = 300
+    SITES = [
+        ("status.smega.eu", "/"),
+        ("api-status.smega.eu", "/api/status"),
+        ("whoami.smega.eu", "/"),
+        ("cluster.smega.eu", "/"),
+        ("log.smega.eu", "/"),
+    ]
+    # The serving Deployments ( Flagger's -primary copies, not the canaries ).
+    TARGETS = [
+        ("public-demo", "status-web-primary"),
+        ("public-demo", "status-api-primary"),
+        ("public-demo", "whoami"),
+        ("public-demo", "devlog-web"),
+        ("public-dashboard", "dashboard-web"),
+        ("public-dashboard", "dashboard-backend"),
+    ]
+    SA = "/var/run/secrets/kubernetes.io/serviceaccount"
+    API = "https://kubernetes.default.svc"
+
+
+    def kube(method, path, body=None, content_type="application/json"):
+        with open(f"{SA}/token") as f:
+            token = f.read()
+        req = urllib.request.Request(API + path, method=method)
+        req.add_header("Authorization", f"Bearer {token}")
+        data = None
+        if body is not None:
+            req.add_header("Content-Type", content_type)
+            data = json.dumps(body).encode()
+        ctx = ssl.create_default_context(cafile=f"{SA}/ca.crt")
+        with urllib.request.urlopen(req, data=data, context=ctx, timeout=20) as r:
+            return json.load(r)
+
+
+    def prom(query):
+        q = urllib.parse.urlencode({"query": query})
+        with urllib.request.urlopen(f"{PROMETHEUS}/api/v1/query?{q}", timeout=20) as r:
+            body = json.load(r)
+        if body.get("status") != "success":
+            raise RuntimeError(f"Prometheus answered {body.get('status')}")
+        return body["data"]["result"]
+
+
+    def deployment(ns, name):
+        return kube("GET", f"/apis/apps/v1/namespaces/{ns}/deployments/{name}")
+
+
+    def full_strength(d):
+        want = d["spec"].get("replicas", 1)
+        return want > 0 and d["status"].get("readyReplicas", 0) == want and d["status"].get("updatedReplicas", 0) == want
+
+
+    def reasons_to_skip():
+        why = []
+        firing = prom('ALERTS{alertstate="firing",severity=~"warning|critical"}')
+        if firing:
+            why.append("alerts firing: " + ", ".join(sorted({a["metric"]["alertname"] for a in firing})))
+        if prom("max(kube_node_spec_unschedulable) == 1"):
+            why.append("a node is cordoned")
+        for c in kube("GET", "/apis/flagger.app/v1beta1/namespaces/public-demo/canaries")["items"]:
+            phase = c.get("status", {}).get("phase", "")
+            if phase in ("Progressing", "Promoting", "Finalising", "Waiting", "WaitingPromotion"):
+                why.append(f"canary {c['metadata']['name']} is {phase}")
+        for ns, name in TARGETS:
+            d = deployment(ns, name)
+            if d["spec"].get("replicas", 1) < 2:
+                why.append(f"{ns}/{name} has fewer than 2 replicas")
+            elif not full_strength(d):
+                why.append(f"{ns}/{name} is not at full strength")
+        return why
+
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+
+    OPENER = urllib.request.build_opener(NoRedirect)
+
+
+    def probe_round():
+        failed = []
+        for host, path in SITES:
+            req = urllib.request.Request(KONG + path, headers={"Host": host})
+            try:
+                with OPENER.open(req, timeout=5) as r:
+                    if r.status != 200:
+                        failed.append(f"{host} {r.status}")
+            except Exception as e:
+                failed.append(f"{host} {getattr(e, 'code', type(e).__name__)}")
+        return failed
+
+
+    def log_result(line):
+        cm = kube("GET", "/api/v1/namespaces/public-demo/configmaps/game-day-log")
+        results = cm.get("data", {}).get("results", "") + line + "\n"
+        kube("PATCH", "/api/v1/namespaces/public-demo/configmaps/game-day-log",
+             {"data": {"results": results}}, "application/merge-patch+json")
+
+
+    def main():
+        now = datetime.datetime.now(datetime.timezone.utc)
+        when = now.strftime("%Y-%m-%d %H:%M")
+        if now.day > 7 and not FORCE:
+            print("not the first Tuesday of the month, nothing to do")
+            return 0
+        try:
+            why = reasons_to_skip()
+        except Exception as e:
+            print(f"could not check the guardrails, not starting: {e}")
+            return 1
+        if why:
+            print("skipped: " + "; ".join(why))
+            if DRY_RUN:
+                return 0
+            log_result(f"{when} | - | SKIPPED | {'; '.join(why)} | -")
+            return 0
+
+        failed_before = probe_round()
+        if failed_before:
+            print(f"sites already failing before the test, not starting: {failed_before}")
+            if DRY_RUN:
+                return 0
+            log_result(f"{when} | - | SKIPPED | failing before the test: {', '.join(failed_before)} | -")
+            return 0
+
+        if DRY_RUN:
+            print("dry run: guardrails passed, sites answer, nothing killed")
+            return 0
+
+        ns, name = random.choice(TARGETS)
+        d = deployment(ns, name)
+        selector = ",".join(f"{k}={v}" for k, v in d["spec"]["selector"]["matchLabels"].items())
+        pods = kube("GET", f"/api/v1/namespaces/{ns}/pods?labelSelector={urllib.parse.quote(selector)}")["items"]
+        victim = random.choice(pods)["metadata"]["name"]
+        print(f"killing {ns}/{victim} ( no grace period )", flush=True)
+        kube("DELETE", f"/api/v1/namespaces/{ns}/pods/{victim}", {"gracePeriodSeconds": 0})
+        start = time.monotonic()
+
+        total, failures, recovered_after = 0, [], None
+        while time.monotonic() - start < WATCH_SECONDS or recovered_after is None:
+            if time.monotonic() - start > RECOVERY_SECONDS:
+                break
+            if time.monotonic() - start < WATCH_SECONDS:
+                f = probe_round()
+                total += len(SITES)
+                failures += [f"{round(time.monotonic() - start)}s {x}" for x in f]
+            if recovered_after is None and full_strength(deployment(ns, name)):
+                recovered_after = round(time.monotonic() - start)
+            time.sleep(1)
+
+        verdict = "PASS" if not failures and recovered_after is not None else "FAIL"
+        rec = f"{recovered_after}s" if recovered_after is not None else f"not within {RECOVERY_SECONDS}s"
+        print(f"{verdict}: {len(failures)} of {total} requests failed, back to full strength after {rec}")
+        for f in failures[:20]:
+            print("  " + f)
+        log_result(f"{when} | {ns}/{victim} | {verdict} | {len(failures)}/{total} | {rec}")
+        return 0 if verdict == "PASS" else 1
+
+
+    sys.exit(main())
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: game-day
+  namespace: public-demo
+spec:
+  # Every Tuesday; the script only acts on the first one of the month.
+  schedule: "30 10 * * 2"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 21600
+      # A game day runs once: a retry would kill a second pod.
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app: game-day # for its NetworkPolicy ( 16-network-policies.yaml )
+        spec:
+          imagePullSecrets:
+          - name: zot-registry
+          serviceAccountName: game-day
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: game-day
+            # The checker's image, for its Python; the script is the ConfigMap.
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795343513-6302ac8 # {"$imagepolicy": "flux-system:status-checker"}
+            command: [python, /game-day/game_day.py]
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+              readOnlyRootFilesystem: true
+            env:
+            - name: PROMETHEUS_URL
+              value: http://grafana-kube-prometheus-st-prometheus.monitoring.svc:9090
+            - name: FORCE
+              value: "0"
+            - name: DRY_RUN
+              value: "0"
+            volumeMounts:
+            - name: script
+              mountPath: /game-day
+              readOnly: true
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 200m
+                memory: 64Mi
+          volumes:
+          - name: script
+            configMap:
+              name: game-day
