@@ -150,6 +150,8 @@ metadata:
   labels:
     release: grafana
 spec:
+  # busybox httpd says text/plain without a version.
+  fallbackScrapeProtocol: PrometheusText0.0.4
   selector:
     matchLabels:
       app: sd-card-health
@@ -157,8 +159,6 @@ spec:
     - port: metrics
       path: /metrics.txt
       interval: 5m
-      # busybox httpd says text/plain without a version.
-      fallbackScrapeProtocol: PrometheusText0.0.4
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
