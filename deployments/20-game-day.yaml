@@ -17,11 +17,11 @@
 #   - a FAIL, or no recovery within 5 minutes, fails the Job, so
 #     KubeJobFailed reaches the phone
 #
-# Check the guardrails without killing anything: the same, with DRY_RUN=1
-# as well ( sed 's/value: "0"/value: "1"/g' sets both ).
 # Run it now ( FORCE=1 skips the first-Tuesday check, not the guardrails ):
 #   kubectl -n public-demo create job --from=cronjob/game-day game-day-manual \
-#     --dry-run=client -o yaml | sed 's/value: "0"/value: "1"/' | kubectl apply -f -
+#     --dry-run=client -o yaml | sed '/name: FORCE/{n;s/"0"/"1"/;}' | kubectl apply -f -
+# Only check the guardrails and the sites, kill nothing: the same with
+#   sed -e '/name: FORCE/{n;s/"0"/"1"/;}' -e '/name: DRY_RUN/{n;s/"0"/"1"/;}'
 apiVersion: v1
 kind: ServiceAccount
 metadata:
