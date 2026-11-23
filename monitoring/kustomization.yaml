@@ -9,6 +9,7 @@ resources:
   - blackbox.yaml
   - maintenance-rules.yaml
   - release-rate-rules.yaml
+  - sd-card-health.yaml
   - node-disk-rules.yaml
   - alert-diagnostics.yaml
   - network-policies.yaml

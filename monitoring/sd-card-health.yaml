@@ -1,0 +1,232 @@
+# SD card health: the same small piece of work on every node's card,
+# timed every 6 hours. SD cards have no SMART; what a dying one shows
+# first is that ordinary writes get slow, then kernel errors, then a
+# read-only root filesystem. node-exporter's latency per operation can't
+# tell a slow card from a busy one ( a day of Trivy scans doubled it on
+# every node ), so the probe measures a fixed job instead:
+#
+#   - 32 MB written with O_DIRECT and an fsync: sequential write speed
+#   - the same 32 MB read back with O_DIRECT: read speed
+#   - 50 x 4 KB writes, each with its own fsync: what the k3s datastore,
+#     Loki and Prometheus' WAL feel
+#
+# plus the kernel's mmc and I/O error lines since boot. The test file is
+# in an emptyDir, which is on the node's root filesystem, the card. About
+# 130 MB written a day per node, against 6-30 GB of normal writes.
+#
+# Served by busybox httpd as a text file, scraped by the PodMonitor
+# below. The alerts compare each card with its own past, not with a
+# fixed number: the four cards differ 3x from each other already.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sd-card-health
+  namespace: monitoring
+data:
+  probe.sh: |
+    #!/bin/sh
+    # Runs forever: one round, then 6 hours of sleep. The first round
+    # waits a random 0-30 minutes, so the four nodes don't test at once.
+    set -u
+    out=/www/metrics.txt
+    dev=mmcblk0
+    up() { cut -d' ' -f1 /proc/uptime; }
+    # An empty page until the first round, so the scrape doesn't fail.
+    : > $out
+    sleep $(( $(od -An -N2 -tu2 /dev/urandom) % 1800 ))
+    while true; do
+      cd /work || exit 1
+      ok=1
+      w=$(dd if=/dev/zero of=probe bs=1M count=32 oflag=direct conv=fsync 2>&1 | tail -1) || ok=0
+      r=$(dd if=probe of=/dev/null bs=1M iflag=direct 2>&1 | tail -1) || ok=0
+      t0=$(up); i=0
+      while [ $i -lt 50 ]; do
+        dd if=/dev/zero of=small bs=4k count=1 conv=fsync 2>/dev/null || ok=0
+        i=$((i + 1))
+      done
+      t1=$(up)
+      rm -f probe small
+      # "33554432 bytes (32.0MB) copied, 2.389193 seconds, 13.4MB/s"
+      ws=$(echo "$w" | awk '{print $(NF-2)}')
+      rs=$(echo "$r" | awk '{print $(NF-2)}')
+      errs=$(dmesg 2>/dev/null | grep -ciE "mmc[0-9].*(error|timeout|timed out)|I/O error|EXT4-fs error|Buffer I/O" )
+      card=$(cat /sys/block/$dev/device/name 2>/dev/null || echo unknown)
+      made=$(cat /sys/block/$dev/device/date 2>/dev/null || echo unknown)
+      {
+        echo "# HELP sd_card_probe_write_seconds Time to write 32 MB with O_DIRECT and fsync."
+        echo "# TYPE sd_card_probe_write_seconds gauge"
+        echo "sd_card_probe_write_seconds $ws"
+        echo "# HELP sd_card_probe_read_seconds Time to read 32 MB with O_DIRECT."
+        echo "# TYPE sd_card_probe_read_seconds gauge"
+        echo "sd_card_probe_read_seconds $rs"
+        echo "# HELP sd_card_probe_sync_write_seconds Average time of one 4 KB write with its own fsync ( 50 of them )."
+        echo "# TYPE sd_card_probe_sync_write_seconds gauge"
+        awk -v a="$t0" -v b="$t1" 'BEGIN { printf "sd_card_probe_sync_write_seconds %.4f\n", (b - a) / 50 }'
+        echo "# HELP sd_card_probe_success 1 if every step of the last round worked."
+        echo "# TYPE sd_card_probe_success gauge"
+        echo "sd_card_probe_success $ok"
+        echo "# HELP sd_card_probe_last_run_timestamp_seconds When the last round finished."
+        echo "# TYPE sd_card_probe_last_run_timestamp_seconds gauge"
+        echo "sd_card_probe_last_run_timestamp_seconds $(date +%s)"
+        echo "# HELP sd_card_kernel_error_lines Kernel log lines about mmc or I/O errors since boot."
+        echo "# TYPE sd_card_kernel_error_lines gauge"
+        echo "sd_card_kernel_error_lines $errs"
+        echo "# HELP sd_card_info The card's name and manufacturing date, from sysfs."
+        echo "# TYPE sd_card_info gauge"
+        echo "sd_card_info{card=\"$card\",manufactured=\"$made\"} 1"
+      } > $out.tmp && mv $out.tmp $out
+      sleep 21600
+    done
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sd-card-health
+  namespace: monitoring
+  labels:
+    app: sd-card-health
+spec:
+  selector:
+    matchLabels:
+      app: sd-card-health
+  template:
+    metadata:
+      labels:
+        app: sd-card-health
+    spec:
+      tolerations:
+        - operator: Exists
+      automountServiceAccountToken: false
+      containers:
+        - name: probe
+          image: busybox:1.37
+          command: [sh, /scripts/probe.sh]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 48Mi
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            - name: work
+              mountPath: /work
+            - name: www
+              mountPath: /www
+        - name: http
+          image: busybox:1.37
+          command: [httpd, -f, -p, "9102", -h, /www]
+          ports:
+            - name: metrics
+              containerPort: 9102
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              memory: 16Mi
+          volumeMounts:
+            - name: www
+              mountPath: /www
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: sd-card-health
+        # On the node's root filesystem: the card being tested.
+        - name: work
+          emptyDir: {}
+        - name: www
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: sd-card-health
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  selector:
+    matchLabels:
+      app: sd-card-health
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics.txt
+      interval: 5m
+      # busybox httpd says text/plain without a version.
+      fallbackScrapeProtocol: PrometheusText0.0.4
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sd-card-health
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: sd-card-health
+      rules:
+        # Each card against its own last two weeks. The median of a day's
+        # four rounds, so one slow round ( a scan running at the same time )
+        # doesn't count. Needs a week of history before it can fire.
+        - alert: SDCardSlowing
+          expr: >-
+            quantile_over_time(0.5, sd_card_probe_sync_write_seconds[1d])
+              > 2.5 * quantile_over_time(0.5, sd_card_probe_sync_write_seconds[14d] offset 1d)
+            and count_over_time(sd_card_probe_sync_write_seconds[14d] offset 1d) > 7 * 24 * 12
+          for: 12h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/SDCardSlowing.md
+            summary: "{{ $labels.node }}: the SD card's small writes are {{ $value | humanizeDuration }} each, 2.5x its usual"
+            description: >-
+              The same 4 KB write with fsync takes 2.5 times as long as it did
+              over the last two weeks, for a whole day. Worn SD cards slow
+              down before they fail. Plan a new card ( clone it while it still
+              reads ).
+        - alert: SDCardKernelErrors
+          expr: delta(sd_card_kernel_error_lines[7h]) > 0
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/SDCardKernelErrors.md
+            summary: "{{ $labels.node }}: new mmc or I/O errors in the kernel log"
+            description: >-
+              The kernel logged new SD card or I/O errors since the last probe
+              round. Look at `dmesg` on the node; errors that repeat mean the
+              card is failing.
+        - alert: NodeRootFilesystemReadOnly
+          expr: node_filesystem_readonly{mountpoint="/"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/SDCardKernelErrors.md
+            summary: "{{ $labels.instance }}: the root filesystem is read-only"
+            description: >-
+              ext4 remounts read-only after an I/O error it can't recover from,
+              usually a failing card. Nothing on the node can write: pods,
+              kubelet and k3s will fail. Drain it and replace the card.
+        - alert: SDCardProbeMissing
+          expr: >-
+            time() - sd_card_probe_last_run_timestamp_seconds > 13 * 3600
+            or sd_card_probe_success == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/SDCardKernelErrors.md
+            summary: "{{ $labels.node }}: the SD card probe failed or hasn't run for over 13 hours"
+            description: >-
+              The probe writes to the card every 6 hours. A failed write is a
+              symptom in itself; a stuck probe means the alerts above are blind
+              on this node.

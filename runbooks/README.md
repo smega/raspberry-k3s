@@ -33,6 +33,10 @@ webhook, so the alert itself never waits for it or depends on it.
 | [DeployFreeze](DeployFreeze.md) | warning | `deployments/15-deploy-freeze.yaml` |
 | [NodeCordonedTooLong](NodeCordonedTooLong.md) | warning | `monitoring/maintenance-rules.yaml` |
 | [NodeRootDiskFilling](NodeRootDiskFilling.md) | warning | `monitoring/node-disk-rules.yaml` |
+| [SDCardSlowing](SDCardSlowing.md) | warning | `monitoring/sd-card-health.yaml` |
+| [SDCardKernelErrors](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |
+| [NodeRootFilesystemReadOnly](SDCardKernelErrors.md) | critical | `monitoring/sd-card-health.yaml` |
+| [SDCardProbeMissing](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |
 
 `NodeMaintenance` (same file) has no page: it notifies no one, it only
 inhibits the drain and reboot noise while a node is cordoned.
