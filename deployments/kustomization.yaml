@@ -23,3 +23,4 @@ resources:
   - 16-network-policies.yaml
   - 17-traffic-slo.yaml
   - 18-status-api-canary.yaml
+  - 19-coredns.yaml

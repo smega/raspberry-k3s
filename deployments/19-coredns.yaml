@@ -1,0 +1,41 @@
+# CoreDNS with two replicas. k3s deploys CoreDNS itself
+# ( /var/lib/rancher/k3s/server/manifests/coredns.yaml on the master ) with
+# one replica, and DNS is the one thing every pod needs: on 2026-11-22 a
+# node saturated by a Trivy scan starved that one pod, and DNS failed
+# cluster-wide for ~15 minutes.
+#
+# k3s's manifest has no `replicas` field, so re-applying it ( every k3s
+# start ) leaves the count alone, and its topologySpreadConstraints put
+# each replica on a different node. An HPA pinned at 2 sets the count
+# from git; a hand-made `kubectl scale` would be forgotten by the next
+# rebuild. The PDB keeps a drain from taking both at once.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coredns
+  namespace: kube-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coredns
+  minReplicas: 2
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coredns
+  namespace: kube-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      k8s-app: kube-dns

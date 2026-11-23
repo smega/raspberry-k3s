@@ -22,14 +22,16 @@ operator:
 
 trivyOperator:
   # Scans pull image layers onto the node's SD card: spread them over the
-  # nodes, but not kube-slave2, whose card is already slow.
-  # Nor next to CoreDNS: there is only one, and an SD card saturated by
-  # a scan starved it on 2026-11-22 ( DNS failed cluster-wide for ~15 min ).
+  # nodes, avoiding kube-slave2, whose card is already slow.
+  # Never next to CoreDNS: an SD card saturated by a scan starved it on
+  # 2026-11-22, when it had one replica ( DNS failed cluster-wide for
+  # ~15 min ). With two replicas on two nodes, two nodes stay free.
   scanJobAffinity:
     nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
               - key: kubernetes.io/hostname
                 operator: NotIn
                 values: [kube-slave2]

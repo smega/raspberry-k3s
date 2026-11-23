@@ -70,7 +70,9 @@ spec:
           # cluster's only CoreDNS on the same node, and DNS failed
           # cluster-wide for ~15 minutes. So: never with CoreDNS ( required
           # anti-affinity, which also keeps CoreDNS from moving next to it ),
-          # not on kube-slave2 ( slow card ) or the master ( memory ).
+          # never on the master ( memory ), and kube-slave2 ( slow card ) only
+          # if nothing else is free: with two CoreDNS replicas
+          # ( deployments/19-coredns.yaml ) on two workers, it may be the only one.
           - target:
               kind: StatefulSet
               name: trivy-server
@@ -84,7 +86,14 @@ spec:
                         - matchExpressions:
                             - key: kubernetes.io/hostname
                               operator: NotIn
-                              values: [kube-master, kube-slave2]
+                              values: [kube-master]
+                    preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 100
+                        preference:
+                          matchExpressions:
+                            - key: kubernetes.io/hostname
+                              operator: NotIn
+                              values: [kube-slave2]
                   podAntiAffinity:
                     requiredDuringSchedulingIgnoredDuringExecution:
                       - topologyKey: kubernetes.io/hostname
