@@ -30,8 +30,19 @@ loki:
     delete_request_store: filesystem
   pattern_ingester:
     enabled: false
-  ruler:
+  # The ruler runs inside the one process, with its rules from the
+  # loki-rules ConfigMap ( loki-rules.yaml, mounted below ) and alerts
+  # going to the same Alertmanager as Prometheus'.
+  rulerConfig:
     enable_api: false
+    storage:
+      type: local
+      local:
+        directory: /etc/loki/rules
+    rule_path: /var/loki/ruler-scratch
+    alertmanager_url: http://grafana-kube-prometheus-st-alertmanager.monitoring.svc:9093
+    wal:
+      dir: /var/loki/ruler-wal
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 10001
@@ -59,6 +70,16 @@ singleBinary:
               - key: kubernetes.io/hostname
                 operator: In
                 values: [kube-slave1, kube-slave3]
+  # The rules, as tenant "fake" ( what Loki calls everything when auth
+  # is off ).
+  extraVolumes:
+    - name: rules
+      configMap:
+        name: loki-rules
+  extraVolumeMounts:
+    - name: rules
+      mountPath: /etc/loki/rules/fake
+      readOnly: true
   resources:
     requests:
       cpu: 50m
@@ -75,7 +96,8 @@ gateway: {enabled: false}
 lokiCanary: {enabled: false}
 test: {enabled: false}
 minio: {enabled: false}
-# No ruler, so no sidecar watching ConfigMaps for rules.
+# The rules are one ConfigMap mounted as a volume: no sidecar watching
+# ConfigMaps for them.
 sidecar:
   rules:
     enabled: false
