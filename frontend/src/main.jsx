@@ -1042,6 +1042,59 @@ function TrafficSection({ apiBase }) {
   )
 }
 
+// What the whole cluster draws from the wall: a metering smart plug in front
+// of the USB hub that feeds all four Pis, through status-api's /api/power.
+function PowerSection({ apiBase }) {
+  const [w, setW] = useState(null)
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`${apiBase}/api/power`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v) => setW(v))
+        .catch(() => setW(null))
+    }
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => clearInterval(interval)
+  }, [apiBase])
+
+  if (!w || w.watts == null) return null
+  const windowStart = Date.now() / 1000 - w.windowHours * 3600
+  const span =
+    w.since != null && w.since > windowStart + 3600
+      ? `since ${formatBuildTime(new Date(w.since * 1000).toISOString())}`
+      : `last ${w.windowHours} hours`
+  const watts = (v) => (v == null ? '-' : `${v.toFixed(1)} W`)
+  const p = { margin: '16px 0 0', fontSize: '13px', color: INK_SECONDARY, lineHeight: 1.6, maxWidth: '720px' }
+  return (
+    <section style={{ marginTop: '48px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 16px', color: INK_PRIMARY }}>Power</h2>
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px' }}>
+          <StatTile label="Now" value={watts(w.watts)} detail="all four Pis, from the wall" />
+          <StatTile label="Average" value={watts(w.avgWatts)} detail={`peak ${watts(w.maxWatts)}, ${span}`} />
+          <StatTile
+            label="A month"
+            value={w.monthKWh != null ? `${w.monthKWh.toFixed(1)} kWh` : '-'}
+            detail="at the average above"
+          />
+          <StatTile
+            label="Cost a month"
+            value={w.monthCostGBP != null ? `£${w.monthCostGBP.toFixed(2)}` : '-'}
+            detail={`at ${(w.tariffGBPPerKWh * 100).toFixed(2)}p per kWh`}
+          />
+        </div>
+        <p style={p}>
+          A Pi 4 can't measure its own power use, so a metering smart plug sits in front of the USB hub that feeds
+          the whole cluster. Home Assistant reads it over Matter, and Prometheus reads Home Assistant once a minute.
+          The figure includes the hub and the power supplies' losses: it's what the electricity bill sees.
+        </p>
+      </Card>
+    </section>
+  )
+}
+
 function HowItWorksSection({ apiBase }) {
   const p = { margin: '0 0 12px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6 }
   return (
@@ -1475,6 +1528,7 @@ function ClusterView({ apiBase }) {
       <NodesSection apiBase={apiBase} />
       <DeliverySection apiBase={apiBase} />
       <TrafficSection apiBase={apiBase} />
+      <PowerSection apiBase={apiBase} />
       <HowItWorksSection apiBase={apiBase} />
     </>
   )

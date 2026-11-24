@@ -209,6 +209,16 @@ single 502 in a quiet hour doesn't page. The rules have promtool tests
 ( `tools/rule-tests/run.sh` ). The Cluster tab shows the last 24 hours
 ( `/api/traffic` ).
 
+### Power use
+
+A Pi 4 can't measure its own power draw, so a metering smart plug
+( SONOFF S60TPG-M, Matter over Wi-Fi ) sits in front of the USB hub that
+feeds all four Pis. Home Assistant reads it over Matter, Prometheus scrapes
+Home Assistant's `/api/prometheus` once a minute, and recording rules
+( `monitoring/home-power-rules.yaml` ) turn it into watts, kWh and a
+monthly estimate. The Cluster tab shows them with the cost at the home
+tariff ( `/api/power` ). First reading: about 14 W for the whole cluster.
+
 ### Alerts that arrive with their diagnostics
 
 Every alert that goes to my phone is followed by a quiet second message

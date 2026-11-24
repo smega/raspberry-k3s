@@ -8,6 +8,7 @@
 //	/api/release     the last canary release of the page ( Flagger's metrics )
 //	/api/freeze      the error budget policy's deploy freeze
 //	/api/traffic     what visitors got over the last day ( Kong's metrics )
+//	/api/power       what the cluster draws from the wall ( a metering plug )
 //	/api/dora        the four DORA metrics
 //
 // and /metrics on :9100 for Prometheus. Released as a canary
@@ -103,6 +104,7 @@ func main() {
 	release := &releaseCache{prom: prom}
 	freeze := &freezeCache{prom: prom}
 	traffic := &trafficCache{prom: prom}
+	power := &powerCache{prom: prom}
 	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}, known: map[string]int64{}}}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
@@ -140,6 +142,16 @@ func main() {
 		if err != nil {
 			log.Printf("could not read the traffic numbers: %v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "traffic numbers not available"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	router.GET("/api/power", func(c *gin.Context) {
+		resp, err := power.get(c.Request.Context())
+		if err != nil {
+			log.Printf("could not read the power numbers: %v", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "power numbers not available"})
 			return
 		}
 		c.JSON(http.StatusOK, resp)
