@@ -68,12 +68,22 @@ spec:
           expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[1d]))
         - record: status:error_ratio:avg3d
           expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[3d]))
+        # Failed checks in the last hour. The checker runs every 5 minutes
+        # and status_service_up holds each result until the next run, so a
+        # 5-minute subquery step sees each check once.
+        - record: status:failed_checks:1h
+          expr: sum_over_time((max without (instance, pod) (status_service_up) == bool 0)[1h:5m])
 
     - name: status-slo.alerts
       rules:
         - alert: StatusSLOFastBurn
           expr: |
-            (status:error_ratio:avg1h > (14.4 * 0.005) and status:error_ratio:avg5m > (14.4 * 0.005))
+            # At least 2 failed checks: one failed check holds the gauge at 0
+            # for 5 of 60 minutes, 8.3%, already over 14.4x the budget. On
+            # 2026-11-24 a single 04:00 timeout ( the home connection's
+            # nightly blip ) paged as critical.
+            (status:error_ratio:avg1h > (14.4 * 0.005) and status:error_ratio:avg5m > (14.4 * 0.005)
+              and status:failed_checks:1h >= 2)
             or
             (status:error_ratio:avg6h > (6 * 0.005) and status:error_ratio:avg30m > (6 * 0.005))
           labels:

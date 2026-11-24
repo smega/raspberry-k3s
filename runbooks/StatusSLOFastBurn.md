@@ -67,3 +67,4 @@ a postmortem in `postmortems/` if it lasted or taught something.
 
 - 2026-11-14: the master reboot left Kong without routes (404 on every
   site) until a controller pushed them; now 2 controllers.
+- 2026-11-24: one failed check ( a 04:00 timeout on the cluster dashboard, the home connection's nightly blip ) paged as critical: one check holds the gauge at 0 for 5 of 60 minutes, 8.3%, over the 1-hour threshold. The 1-hour condition now also needs at least 2 failed checks in that hour ( status:failed_checks:1h ).

@@ -1,0 +1,27 @@
+# Run with tools/rule-tests/run.sh.
+rule_files: [status-slo.rules.yaml]
+evaluation_interval: 1m
+tests:
+  # One failed check ( the gauge at 0 for 5 minutes ) -> no fast burn.
+  - interval: 1m
+    input_series:
+      - series: 'status_service_up{service="Cluster dashboard",slug="cluster-dashboard",pod="a",instance="a"}'
+        values: '1x400 0x4 1x60'
+    alert_rule_test:
+      - eval_time: 406m
+        alertname: StatusSLOFastBurn
+        exp_alerts: []
+  # Two failed checks in a row -> fast burn.
+  - interval: 1m
+    input_series:
+      - series: 'status_service_up{service="Cluster dashboard",slug="cluster-dashboard",pod="a",instance="a"}'
+        values: '1x400 0x9 1x60'
+    alert_rule_test:
+      - eval_time: 410m
+        alertname: StatusSLOFastBurn
+        exp_alerts:
+          - exp_labels: {severity: critical, service: Cluster dashboard, slug: cluster-dashboard}
+            exp_annotations:
+              summary: "Cluster dashboard is burning its error budget fast"
+              description: "Cluster dashboard is failing checks fast enough to use up a big part of its 30-day error budget (SLO 99.5%) within hours. Error ratio now: 16.67%. https://status.smega.eu"
+              runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/StatusSLOFastBurn.md
