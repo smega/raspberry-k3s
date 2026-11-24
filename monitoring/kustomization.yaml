@@ -11,6 +11,7 @@ resources:
   - release-rate-rules.yaml
   - sd-card-health.yaml
   - dns-probe.yaml
+  - home-power-rules.yaml
   - node-runtime-rules.yaml
   - node-disk-rules.yaml
   - alert-diagnostics.yaml

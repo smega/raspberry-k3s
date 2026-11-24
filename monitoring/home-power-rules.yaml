@@ -1,0 +1,28 @@
+# Power use of the whole cluster, from a metering smart plug in front of
+# the USB hub that feeds all four Pis ( Pi 4s have no power readings in
+# software ). Home Assistant reads the plug over Matter and Prometheus
+# scrapes HA ( job home-assistant, defined in the private repo: it names
+# the home network ). These rules give the plug's series neutral names
+# for the status page.
+#
+# First reading, 2026-11-24 right after boot: 13.7 W for the four Pis.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: home-power
+  namespace: monitoring
+  labels:
+    release: grafana
+spec:
+  groups:
+    - name: home-power
+      rules:
+        - record: cluster:power_watts
+          expr: max(homeassistant_sensor_power_w{job="home-assistant"})
+        # The plug's energy counter only goes up ( it resets if the plug
+        # is reset ); increase() handles that.
+        - record: cluster:energy_kwh:24h
+          expr: max(increase(homeassistant_sensor_energy_kwh{job="home-assistant"}[24h]))
+        # A month at the last day's average draw.
+        - record: cluster:energy_kwh:30d_projected
+          expr: avg_over_time(cluster:power_watts[24h]) * 24 * 30 / 1000
