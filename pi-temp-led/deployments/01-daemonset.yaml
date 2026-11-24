@@ -25,7 +25,7 @@ spec:
         - name: zot-registry
       containers:
         - name: led
-          image: registry.smdoes.eu/raspberry/pi-temp-led:main-1795519740-0d8fa63 # {"$imagepolicy": "flux-system:pi-temp-led"}
+          image: registry.smdoes.eu/raspberry/pi-temp-led:main-1795526069-fcd386c # {"$imagepolicy": "flux-system:pi-temp-led"}
           imagePullPolicy: IfNotPresent
           # GPIO access needs real hardware device access -- simplest
           # reliable way to get it on a home cluster. Not internet-facing,

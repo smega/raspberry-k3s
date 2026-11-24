@@ -328,7 +328,7 @@ spec:
           containers:
           - name: game-day
             # The checker's image, for its Python; the script is the ConfigMap.
-            image: registry.smdoes.eu/raspberry/status-checker:main-1795519739-0d8fa63 # {"$imagepolicy": "flux-system:status-checker"}
+            image: registry.smdoes.eu/raspberry/status-checker:main-1795526068-fcd386c # {"$imagepolicy": "flux-system:status-checker"}
             command: [python, /game-day/game_day.py]
             securityContext:
               allowPrivilegeEscalation: false
