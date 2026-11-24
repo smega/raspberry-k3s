@@ -48,7 +48,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/status-web:main-1795287867-0dbad96 # {"$imagepolicy": "flux-system:status-web"}
+          image: registry.smdoes.eu/raspberry/status-web:main-1795519741-0d8fa63 # {"$imagepolicy": "flux-system:status-web"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
