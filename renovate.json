@@ -6,7 +6,7 @@
   ],
   "timezone": "Europe/London",
   "schedule": [
-    "before 9am on monday"
+    "before 4pm every weekday"
   ],
   "automergeSchedule": [
     "after 9am and before 4pm every weekday"
@@ -17,8 +17,8 @@
   "minimumReleaseAge": "14 days",
   "prConcurrentLimit": 5,
   "flux": {
-    "fileMatch": [
-      "\\.ya?ml$"
+    "managerFilePatterns": [
+      "/\\.ya?ml$/"
     ]
   },
   "packageRules": [
