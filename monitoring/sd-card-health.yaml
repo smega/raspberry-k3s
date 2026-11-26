@@ -216,7 +216,12 @@ spec:
         # cards' daily medians stayed between 7 and 35 ms. A "slower than
         # the others" rule doesn't work: healthy cards already differ 3x.
         - alert: SDCardVerySlow
-          expr: quantile_over_time(0.5, sd_card_probe_sync_write_seconds[1d]) > 0.1
+          # Only series that are still scraped: after a card swap the old
+          # pod's series keeps the old card's numbers in the 1d window
+          # ( it went pending for the replaced card on 2026-11-26 ).
+          expr: >-
+            quantile_over_time(0.5, sd_card_probe_sync_write_seconds[1d]) > 0.1
+            and on (instance) sd_card_probe_last_run_timestamp_seconds
           for: 6h
           labels:
             severity: warning
