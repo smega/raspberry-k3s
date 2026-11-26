@@ -10,7 +10,10 @@
 #   - 50 x 4 KB writes, each with its own fsync: what the k3s datastore,
 #     Loki and Prometheus' WAL feel
 #
-# plus the kernel's mmc and I/O error lines since boot. The test file is
+# plus the kernel's mmc and I/O error lines since boot, and two numbers
+# for wear: the card's serial ( so a new card starts a new history ) and
+# how much has been written to its root filesystem since it was created
+# ( ext4 keeps that count itself, lifetime_write_kbytes ). The test file is
 # in an emptyDir, which is on the node's root filesystem, the card. About
 # 130 MB written a day per node, against 6-30 GB of normal writes.
 #
@@ -52,6 +55,9 @@ data:
       errs=$(dmesg 2>/dev/null | grep -ciE "mmc[0-9].*(error|timeout|timed out)|I/O error|EXT4-fs error|Buffer I/O" )
       card=$(cat /sys/block/$dev/device/name 2>/dev/null || echo unknown)
       made=$(cat /sys/block/$dev/device/date 2>/dev/null || echo unknown)
+      serial=$(cat /sys/block/$dev/device/serial 2>/dev/null || echo unknown)
+      sectors=$(cat /sys/block/$dev/size 2>/dev/null || echo 0)
+      written_kb=$(cat /sys/fs/ext4/${dev}p2/lifetime_write_kbytes 2>/dev/null || echo 0)
       {
         echo "# HELP sd_card_probe_write_seconds Time to write 32 MB with O_DIRECT and fsync."
         echo "# TYPE sd_card_probe_write_seconds gauge"
@@ -71,9 +77,15 @@ data:
         echo "# HELP sd_card_kernel_error_lines Kernel log lines about mmc or I/O errors since boot."
         echo "# TYPE sd_card_kernel_error_lines gauge"
         echo "sd_card_kernel_error_lines $errs"
-        echo "# HELP sd_card_info The card's name and manufacturing date, from sysfs."
+        echo "# HELP sd_card_info The card's name, manufacturing date and serial, from sysfs."
         echo "# TYPE sd_card_info gauge"
-        echo "sd_card_info{card=\"$card\",manufactured=\"$made\"} 1"
+        echo "sd_card_info{card=\"$card\",manufactured=\"$made\",serial=\"$serial\"} 1"
+        echo "# HELP sd_card_capacity_bytes The card's size."
+        echo "# TYPE sd_card_capacity_bytes gauge"
+        awk -v n="$sectors" 'BEGIN { printf "sd_card_capacity_bytes %.0f\n", n * 512 }'
+        echo "# HELP sd_card_rootfs_written_bytes Written to the root filesystem since it was created ( ext4 lifetime_write_kbytes ). A floor for what the card has taken: the card itself writes more ( wear levelling, erase blocks )."
+        echo "# TYPE sd_card_rootfs_written_bytes counter"
+        awk -v k="$written_kb" 'BEGIN { printf "sd_card_rootfs_written_bytes %.0f\n", k * 1024 }'
       } > $out.tmp && mv $out.tmp $out
       sleep 21600
     done
@@ -93,6 +105,10 @@ spec:
     metadata:
       labels:
         app: sd-card-health
+      annotations:
+        # probe.sh runs in a loop and never rereads the ConfigMap: bump
+        # this when it changes, so the pods restart with the new script.
+        smega.eu/probe-version: "2"
     spec:
       tolerations:
         - operator: Exists
@@ -193,6 +209,84 @@ spec:
               over the last two weeks, for a whole day. Worn SD cards slow
               down before they fail. Plan a new card ( clone it while it still
               reads ).
+        # The same without a baseline: SDCardSlowing needs a week of
+        # history, so it was blind on 2026-11-25/26, when kube-slave2's 2016
+        # card went from 8-17 ms to 700-2400 ms per write ( daily median
+        # 708-1360 ms ) and the node couldn't start pods in time. Healthy
+        # cards' daily medians stayed between 7 and 35 ms. A "slower than
+        # the others" rule doesn't work: healthy cards already differ 3x.
+        - alert: SDCardVerySlow
+          expr: quantile_over_time(0.5, sd_card_probe_sync_write_seconds[1d]) > 0.1
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/SDCardSlowing.md
+            summary: "{{ $labels.node }}: the SD card's small writes take {{ $value | humanizeDuration }} each ( day median )"
+            description: >-
+              A 4 KB write with fsync takes over 100 ms; a healthy card here
+              takes 7-35 ms. Everything that writes often ( containerd, the
+              kubelet, Loki ) waits for it: expect slow pod starts, failed
+              jobs and failed canaries on this node. Replace the card soon,
+              while it still reads.
+        # Wear: SD cards have no SMART, but how much has been written to a
+        # card is known ( ext4's own count, sd_card_rootfs_written_bytes ).
+        # Consumer cards are rated for a few hundred to a few thousand full
+        # writes; the count is a floor, the card itself writes more. On
+        # 2026-11-26: kube-slave1 ~125, kube-master ~97, kube-slave3 ~17.
+        - record: sd_card:full_writes
+          expr: sd_card_rootfs_written_bytes / sd_card_capacity_bytes
+        - record: sd_card:written_bytes_per_day
+          expr: deriv(sd_card_rootfs_written_bytes[7d]) * 86400
+        - alert: SDCardWearHigh
+          expr: sd_card:full_writes > 500
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/SDCardSlowing.md
+            summary: "{{ $labels.node }}: the SD card has been written over {{ $value | printf \"%.0f\" }} times its size"
+            description: >-
+              A consumer SD card is rated for a few hundred to a few thousand
+              full writes, and this count is a floor. Not failing yet, but
+              plan a high-endurance card and clone it while this one reads.
+        # The symptoms a slow card causes, whatever the probe says: the
+        # node waits on its disk, and pods take minutes to start. Seen on
+        # 2026-11-26 on kube-slave2: iowait 19% ( peak 36% ), pod start p90
+        # up to 276 s; on the other nodes iowait stayed under 15% and pod
+        # start p90 under 110 s over the same three days.
+        - alert: NodeIOWaitHigh
+          expr: >-
+            (avg by (instance) (rate(node_cpu_seconds_total{mode="iowait"}[30m])) * 100 > 15)
+            * on (instance) group_left (nodename) max by (instance, nodename) (node_uname_info)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeCannotStartContainers.md
+            summary: "{{ $labels.nodename }}: CPUs waiting on the disk {{ $value | printf \"%.0f\" }}% of the time for an hour"
+            description: >-
+              The node spends a lot of its time waiting for its SD card. Look
+              at sd_card_probe_sync_write_seconds for this node against the
+              others: a slow or worn card shows here first.
+        - alert: PodStartSlow
+          # kubelet's own SLI: from pod creation to running, without the
+          # image pull. At least a few starts in the hour, so one slow pod
+          # doesn't count.
+          expr: >-
+            histogram_quantile(0.9, sum by (node, le) (rate(kubelet_pod_start_sli_duration_seconds_bucket[1h]))) > 120
+            and sum by (node) (increase(kubelet_pod_start_sli_duration_seconds_count[1h])) >= 3
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeCannotStartContainers.md
+            summary: "{{ $labels.node }}: pods take {{ $value | humanizeDuration }} to start ( p90, last hour )"
+            description: >-
+              Pods on this node take minutes from scheduled to running, image
+              pull not counted. Jobs time out and canaries fail their
+              progress deadline. Usually the node's SD card: check iowait and
+              the SD card probe.
         - alert: SDCardKernelErrors
           expr: delta(sd_card_kernel_error_lines[7h]) > 0
           labels:

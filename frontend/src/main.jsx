@@ -233,6 +233,13 @@ function nodeState(n) {
   return { color: GOOD, label: 'Ready' }
 }
 
+// "11/2017" ( sysfs ) -> "Nov 2017"
+function formatCardDate(md) {
+  const [m, y] = md.split('/')
+  const d = new Date(Date.UTC(Number(y), Number(m) - 1, 1))
+  return Number.isNaN(d.getTime()) ? md : d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
 function NodeCard({ n }) {
   const state = nodeState(n)
   return (
@@ -283,6 +290,21 @@ function NodeCard({ n }) {
         percent={n.diskUsedBytes != null && n.diskTotalBytes ? (100 * n.diskUsedBytes) / n.diskTotalBytes : null}
         detail={n.diskUsedBytes != null && n.diskTotalBytes != null ? `${formatGiB(n.diskUsedBytes)} / ${formatGiB(n.diskTotalBytes)} GiB` : null}
       />
+
+      {(n.sdCardMade || n.sdCardFullWrites != null || n.sdCardSyncWriteMs != null) && (
+        <div
+          title="From a probe that writes the same small job to every card every 6 hours. Written: how many times the card's size has gone to its root filesystem; the card itself writes more."
+          style={{ fontSize: '12px', color: INK_MUTED, margin: '4px 0 0' }}
+        >
+          {[
+            n.sdCardMade && `SD card from ${formatCardDate(n.sdCardMade)}`,
+            n.sdCardFullWrites != null && `written ${n.sdCardFullWrites}x`,
+            n.sdCardSyncWriteMs != null && `${n.sdCardSyncWriteMs} ms per synced write`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12px', color: INK_MUTED, margin: '4px 0 14px' }}>
         <span>

@@ -44,6 +44,10 @@ webhook, so the alert itself never waits for it or depends on it.
 | [ClusterDNSDegraded](ClusterDNSDown.md) | warning | `monitoring/dns-probe.yaml` |
 | [ExternalDNSFailing](ClusterDNSDown.md) | warning | `monitoring/dns-probe.yaml` |
 | [SDCardSlowing](SDCardSlowing.md) | warning | `monitoring/sd-card-health.yaml` |
+| [SDCardVerySlow](SDCardSlowing.md) | warning | `monitoring/sd-card-health.yaml` |
+| [SDCardWearHigh](SDCardSlowing.md) | warning | `monitoring/sd-card-health.yaml` |
+| [NodeIOWaitHigh](NodeCannotStartContainers.md) | warning | `monitoring/sd-card-health.yaml` |
+| [PodStartSlow](NodeCannotStartContainers.md) | warning | `monitoring/sd-card-health.yaml` |
 | [SDCardKernelErrors](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |
 | [NodeRootFilesystemReadOnly](SDCardKernelErrors.md) | critical | `monitoring/sd-card-health.yaml` |
 | [SDCardProbeMissing](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |

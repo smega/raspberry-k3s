@@ -1,6 +1,17 @@
-# SDCardSlowing
+# SDCardSlowing, SDCardVerySlow, SDCardWearHigh
 
 **Severity:** warning (phone, normal priority)
+
+Three alerts on the same card, from the same probe:
+
+- **SDCardSlowing:** slower than its own past ( below ). Needs a week of
+  history, so it is blind on a new card.
+- **SDCardVerySlow:** a day's median 4 KB fsynced write over 100 ms, no
+  history needed. Healthy cards here: 7-35 ms.
+- **SDCardWearHigh:** written over 500 times its size, from ext4's own
+  count of what was written to the root filesystem
+  ( `sd_card_rootfs_written_bytes`, `sd_card:full_writes` ). A floor: the
+  card writes more internally. Not a failure, a "plan the next card".
 
 ## What fired
 
@@ -54,3 +65,12 @@ week of history before it can fire again.
 
 - New on 2026-11-23. First baselines: kube-slave2 is the slow one
   ( SanDisk SL32G from 2016 ), already on the TODO for a new card.
+- 2026-11-25/26: that card went from 8-17 ms to 700-2400 ms per write.
+  SDCardSlowing stayed quiet ( three days of history, it wants seven ),
+  while the node failed a CronJob 39 times, took 3-5 minutes per pod
+  start and made two canaries fail. Card replaced by a clone the same day
+  ( 6.3 ms per write ). SDCardVerySlow, NodeIOWaitHigh and PodStartSlow
+  were added after it; backtested, they would have fired from the evening
+  before ( iowait ) and early that morning ( very slow ). SDCardWearHigh
+  and the wear numbers came with them: kube-slave1 ~125 full writes,
+  kube-master ~97, kube-slave3 ~17.

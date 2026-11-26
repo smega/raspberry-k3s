@@ -57,9 +57,15 @@ type nodeStats struct {
 	DiskUsedBytes  *float64 `json:"diskUsedBytes"`
 	DiskTotalBytes *float64 `json:"diskTotalBytes"`
 	PodsRunning    *float64 `json:"podsRunning"`
-	TempHistory    []point  `json:"tempHistory"`
-	CPUHistory     []point  `json:"cpuHistory"`
-	MemHistory     []point  `json:"memHistory"`
+	// The SD card, from the sd-card-health probe ( monitoring/ ): when it
+	// was made ( "11/2017" ), how many times its size has been written to
+	// it, and one 4 KB write with fsync. The serial stays out.
+	SDCardMade        string   `json:"sdCardMade,omitempty"`
+	SDCardFullWrites  *float64 `json:"sdCardFullWrites"`
+	SDCardSyncWriteMs *float64 `json:"sdCardSyncWriteMs"`
+	TempHistory       []point  `json:"tempHistory"`
+	CPUHistory        []point  `json:"cpuHistory"`
+	MemHistory        []point  `json:"memHistory"`
 }
 
 // clusterInfo is the cluster-wide summary. Versions are cut to major.minor:
@@ -292,6 +298,26 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 		}
 	}
 
+	byNode := func(q string) map[string]float64 {
+		out := map[string]float64{}
+		if res, err := p.query(ctx, q); err == nil {
+			for _, s := range res {
+				if v, ok := sampleValue(s.Value); ok {
+					out[s.Metric["node"]] = v
+				}
+			}
+		}
+		return out
+	}
+	sdWrites := byNode(`max by (node) (sd_card:full_writes)`)
+	sdSync := byNode(`max by (node) (sd_card_probe_sync_write_seconds)`)
+	sdMade := map[string]string{}
+	if res, err := p.query(ctx, `max by (node, manufactured) (sd_card_info)`); err == nil {
+		for _, s := range res {
+			sdMade[s.Metric["node"]] = s.Metric["manufactured"]
+		}
+	}
+
 	cluster := clusterInfo{
 		PodsRunning: p.scalar(ctx, `sum(kube_pod_status_phase{phase="Running"})`),
 		Namespaces:  p.scalar(ctx, `count(kube_namespace_status_phase{phase="Active"} == 1)`),
@@ -375,6 +401,17 @@ func (p *promClient) collect(ctx context.Context) (*nodesResponse, error) {
 		}
 		if v, ok := podsByNode[name]; ok {
 			n.PodsRunning = &v
+		}
+		if m := sdMade[name]; m != "" && m != "unknown" {
+			n.SDCardMade = m
+		}
+		if v, ok := sdWrites[name]; ok {
+			r := float64(int64(v + 0.5))
+			n.SDCardFullWrites = &r
+		}
+		if v, ok := sdSync[name]; ok {
+			r := round1(v * 1000)
+			n.SDCardSyncWriteMs = &r
 		}
 		resp.Nodes = append(resp.Nodes, n)
 	}
