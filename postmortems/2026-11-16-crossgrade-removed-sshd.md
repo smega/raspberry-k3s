@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Date | 2026-11-16, 17:36-20:10 UTC |
+| Date | 2026-11-16, about 2.5 hours |
 | Node | kube-slave3 (worker) |
 | Impact on visitors | none measured (see "Impact") |
 | Node out of rotation | 2 h 26 min (planned: ~30 min) |
@@ -32,27 +32,27 @@ then let the script finish. No failed request was measured.
   probe on the VPS (every 2 min, 78 runs during the window) recorded 0
   failures. The once-per-second probes of the upgrade script only cover
   the final 3 minutes, because the first run's probes ended with it, so
-  single failed requests between 17:36 and 20:07 can't be ruled out. An
+  single failed requests before those last minutes can't be ruled out. An
   outage of a minute or more can.
 - SLOs: no error budget used.
 
-## Timeline (UTC)
+## Timeline ( from the start of the real run )
 
 | Time | Event |
 |---|---|
-| 17:11-17:32 | Final full rehearsal in a chroot copy of the node: clean, 21 min |
-| 17:36 | Real run starts: preflight, config backup, boot partition copy |
-| 17:41-17:43 | Gentle drain (10 pods, one at a time), Kong gateway off on the node |
-| 17:44-17:56 | Phases A (purge leftovers), B (Raspbian armhf -> Debian armhf), C1 (dpkg, apt, tar, mawk -> arm64): fine |
-| 17:56 | C2 (everything else, one transaction), round 1: `systemd:armhf`'s prerm refuses to remove the running init. apt stops |
-| ~18:00 (approx.) | The recovery step runs `apt-get -f install`. It removes ~100 packages that are not armhf, including openssh-server and network-manager |
-| 18:00-18:10 | C2 round 2 and C3 (purge armhf, drop the architecture) finish |
-| 18:10 | Final check fails: sshd and NetworkManager missing. The script stops **before the reboot** and leaves the node drained |
-| 18:10-19:19 | Investigation. The network interfaces stay up, so the node is still in the cluster (Ready, drained), but ssh is gone |
-| 19:19-19:53 | Repair via `kubectl debug node/kube-slave3` (chroot into /host, a transient systemd unit): reinstall 118 missing packages (a reference node's list minus what phase A removes on purpose), 0 removals, configs intact (removed, not purged) |
-| 20:07 | Script resumed (`RESUME=1`) |
-| 20:08-20:09 | Reboot, 48 s; all services up |
-| 20:09 | Gateway back on, node uncordoned |
+| before, 21 min | Final full rehearsal in a chroot copy of the node: clean, 21 min |
+| +0 | Real run starts: preflight, config backup, boot partition copy |
+| +5-7 min | Gentle drain (10 pods, one at a time), Kong gateway off on the node |
+| +8-20 min | Phases A (purge leftovers), B (Raspbian armhf -> Debian armhf), C1 (dpkg, apt, tar, mawk -> arm64): fine |
+| +20 min | C2 (everything else, one transaction), round 1: `systemd:armhf`'s prerm refuses to remove the running init. apt stops |
+| ~+24 min | The recovery step runs `apt-get -f install`. It removes ~100 packages that are not armhf, including openssh-server and network-manager |
+| +24-34 min | C2 round 2 and C3 (purge armhf, drop the architecture) finish |
+| +34 min | Final check fails: sshd and NetworkManager missing. The script stops **before the reboot** and leaves the node drained |
+| +34 min to +1 h 43 min | Investigation. The network interfaces stay up, so the node is still in the cluster (Ready, drained), but ssh is gone |
+| +1 h 43 min to +2 h 17 min | Repair via `kubectl debug node/kube-slave3` (chroot into /host, a transient systemd unit): reinstall 118 missing packages (a reference node's list minus what phase A removes on purpose), 0 removals, configs intact (removed, not purged) |
+| +2 h 31 min | Script resumed (`RESUME=1`) |
+| +2 h 32-33 min | Reboot, 48 s; all services up |
+| +2 h 33 min | Gateway back on, node uncordoned |
 
 ## Root cause
 

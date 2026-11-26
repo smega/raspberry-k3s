@@ -31,16 +31,16 @@ placebo.
 - The k3s datastore backups use a different path and were fine, so the
   cluster itself was always recoverable.
 
-## Timeline (UTC)
+## Timeline
 
 | Time | Event |
 |---|---|
-| 2026-11-15 18:05 | First backup through the new upgrade script (kube-slave3, before trixie). Corrupt, unnoticed |
+| 2026-11-15 | First backup through the new upgrade script (kube-slave3, before trixie). Corrupt, unnoticed |
 | 2026-11-15 to 11-17 | Six more, one before each node's trixie and arm64 upgrade. All corrupt |
-| 2026-11-17, before 14:00 | Writing the SD card replacement runbook: `tar -tzf` on a backup to show what's in it. It stops with "unexpected end of file". All 7 checked: every one breaks early. Cause found, backup function rewritten |
-| 14:01-14:16 | Fresh backups of all 4 nodes, each checked on the backup host; a single-file restore tested |
-| 15:28 | The 7 broken tarballs deleted |
-| 2026-11-18 05:41 | The new check catches a backup cut short by a network drop on the control-plane node and stops the upgrade before the drain. A retry works |
+| 2026-11-17 | Writing the SD card replacement runbook: `tar -tzf` on a backup to show what's in it. It stops with "unexpected end of file". All 7 checked: every one breaks early. Cause found, backup function rewritten |
+| then, 15 min | Fresh backups of all 4 nodes, each checked on the backup host; a single-file restore tested |
+| later that day | The 7 broken tarballs deleted |
+| 2026-11-18 | The new check catches a backup cut short by a network drop on the control-plane node and stops the upgrade before the drain. A retry works |
 
 ## Root cause
 
@@ -77,7 +77,7 @@ Why it wasn't caught:
   `.part` file, lists it with `tar -tzf` (which reads the whole gzip
   stream), requires `etc/fstab` in the list, and only then renames it.
   The upgrade stops if any of that fails. This caught a real problem the
-  next morning: a network drop cut a stream at 227 of 422 MB.
+  next day: a network drop cut a stream at 227 of 422 MB.
 - **One retry, with keepalives,** so a short network drop doesn't stop an
   upgrade, but a broken backup still does.
 - The upgrade write-ups have a "lessons" entry for it, and the
