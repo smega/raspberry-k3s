@@ -90,6 +90,7 @@ data:
     import os
     import ssl
     import sys
+    import time
     import urllib.parse
     import urllib.request
 
@@ -117,6 +118,21 @@ data:
         return len(body["data"]["result"]) > 0
 
 
+    def freeze_wanted_retry(tries=4, wait=5):
+        # A new pod's first seconds: the NetworkPolicy may not let it in to
+        # Prometheus yet, and the connection is refused ( 39 of 863 runs
+        # failed that way, 2026-11-23..26 ). A Prometheus that is really down
+        # still fails all four tries.
+        for i in range(tries):
+            try:
+                return freeze_wanted()
+            except Exception as e:
+                if i == tries - 1:
+                    raise
+                print(f"Prometheus try {i + 1} failed ( {e} ), again in {wait} s")
+                time.sleep(wait)
+
+
     def kube(method, patch=None):
         with open(f"{SA}/token") as f:
             token = f.read()
@@ -133,7 +149,7 @@ data:
 
     def main():
         try:
-            want = freeze_wanted()
+            want = freeze_wanted_retry()
         except Exception as e:  # leave things as they are, but fail the Job
             print(f"could not ask Prometheus, changing nothing: {e}")
             return 1

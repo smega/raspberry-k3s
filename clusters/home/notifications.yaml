@@ -23,6 +23,14 @@ spec:
   providerRef:
     name: ntfy
   eventSeverity: error
+  # The home line drops for ~20 s at 04:00 every night. On 2026-11-26 the
+  # in-cluster resolver failed for one second and all 8 ImageRepositories
+  # sent a "server misbehaving" each; they were fine 5 minutes later. Only
+  # DNS resolver failures are dropped: a DNS outage that lasts is caught by
+  # the status checker and the external probe, and every other error
+  # ( bad manifest, missing tag, auth ) still comes through.
+  exclusionList:
+    - 'dial tcp: lookup \S+ on \S+: (server misbehaving|i/o timeout)'
   eventSources:
     - kind: GitRepository
       name: '*'
