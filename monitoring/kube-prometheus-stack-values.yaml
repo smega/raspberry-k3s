@@ -170,6 +170,7 @@ alertmanager:
     # /etc/alertmanager/secrets/alertmanager-notify/:
     #   ntfy-critical-url     - https://ntfy.sh/<topic>?template=yes&title=...&message=...&priority=high&tags=rotating_light
     #   ntfy-warning-url      - https://ntfy.sh/<topic>?template=yes&title=...&message=...&tags=warning
+    #   ntfy-info-url         - the same with &tags=rocket&priority=low ( NewVersionLive )
     # title/message are an inline ntfy template (URL-encoded) over the webhook
     # JSON; ntfy's built-in "alertmanager" one doesn't show runbook_url:
     #   title:   {{- if eq .status "resolved" }}Resolved: {{ end }}{{ (first .alerts).labels.alertname }}
@@ -205,6 +206,13 @@ alertmanager:
         # Only an inhibition source (maintenance-rules.yaml), never sent.
         - matchers: [alertname = "NodeMaintenance"]
           receiver: "null"
+        # A new version went live ( flagger/alerts.yaml ): one quiet message
+        # per release, api and web together when they go out at once.
+        - matchers: [alertname = "NewVersionLive"]
+          receiver: ntfy-info
+          group_by: [alertname]
+          group_wait: 1m
+          repeat_interval: 24h
         - matchers: [severity = "critical"]
           receiver: ntfy-critical
           repeat_interval: 4h
@@ -251,6 +259,12 @@ alertmanager:
             send_resolved: true
             max_alerts: 3
           - url: http://alert-diagnostics.monitoring.svc/alert
+            send_resolved: false
+            max_alerts: 3
+      # No alert-diagnostics here: nothing to diagnose.
+      - name: ntfy-info
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-info-url
             send_resolved: false
             max_alerts: 3
       - name: runguard

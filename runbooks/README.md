@@ -31,6 +31,7 @@ webhook, so the alert itself never waits for it or depends on it.
 | [TLSProbeFailing](TLSProbeFailing.md) | warning | `deployments/12-cert-expiry.yaml` |
 | [CanaryRolledBack](CanaryRolledBack.md) | warning | `flagger/alerts.yaml` |
 | [CanaryStuck](CanaryStuck.md) | warning | `flagger/alerts.yaml` |
+| [NewVersionLive](NewVersionLive.md) | notice | `flagger/alerts.yaml` |
 | [UnusualReleaseRate](UnusualReleaseRate.md) | warning | `monitoring/release-rate-rules.yaml` |
 | [LogPanic](LogPanic.md) | warning | `observability/loki-rules.yaml` ( Loki ) |
 | [LogTraceback](LogPanic.md) | warning | `observability/loki-rules.yaml` ( Loki ) |

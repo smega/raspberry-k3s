@@ -37,3 +37,35 @@ spec:
             description: >-
               A release normally takes about 3 minutes. Flagger may be
               waiting on a Deployment that never gets ready.
+        # Not a problem: a heads-up that a new version reached visitors.
+        # Fires once per promotion: promoted ( 1 ) now, progressing ( 0 )
+        # some time in the last 15 minutes. for: 2m skips the one-minute 1
+        # Flagger reports between the analysis and the promotion. The commit
+        # comes from the image tag ( main-<build time>-<sha> ) of the newest
+        # -primary pod. Its own severity: "info" would be silenced by
+        # InfoInhibitor, and Alertmanager routes it to a low-priority ntfy.
+        - alert: NewVersionLive
+          expr: |
+            (
+              max by (name) (flagger_canary_status) == 1
+              and on (name) min by (name) (min_over_time(flagger_canary_status[15m])) == 0
+            )
+            * on (name) group_left (sha)
+            (
+              max by (name, sha) (topk by (name) (1,
+                label_replace(label_replace(
+                  kube_pod_container_info{namespace="public-demo", pod=~".+-primary-.+"},
+                  "name", "$1", "pod", "(.+)-primary-[a-z0-9]+-[a-z0-9]+"),
+                  "sha", "$1", "image_spec", ".*:main-[0-9]+-([0-9a-f]+)(@.*)?")
+                * on (namespace, pod) group_left kube_pod_created
+              )) * 0 + 1
+            )
+          for: 2m
+          labels:
+            severity: notice
+          annotations:
+            runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NewVersionLive.md
+            summary: "{{ $labels.name }} {{ $labels.sha }} is live"
+            description: >-
+              https://github.com/smega/raspberry-k3s/commit/{{ $labels.sha }}
+              passed its canary checks and now serves all traffic.
