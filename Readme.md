@@ -217,7 +217,10 @@ feeds all four Pis. Home Assistant reads it over Matter, Prometheus scrapes
 Home Assistant's `/api/prometheus` once a minute, and recording rules
 ( `monitoring/home-power-rules.yaml` ) turn it into watts, kWh and a
 monthly estimate. The Cluster tab shows them with the cost at the home
-tariff ( `/api/power` ). First reading: about 14 W for the whole cluster.
+tariff ( `/api/power` ), and charts for the last day's watts and current
+and the 24-hour average over the last week. First reading: about 14 W for
+the whole cluster; the current is about twice what the watts suggest
+( power factor ~0.5, the USB power supplies draw it in pulses ).
 
 ### Alerts that arrive with their diagnostics
 

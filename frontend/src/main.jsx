@@ -1044,6 +1044,91 @@ function TrafficSection({ apiBase }) {
 
 // What the whole cluster draws from the wall: a metering smart plug in front
 // of the USB hub that feeds all four Pis, through status-api's /api/power.
+// A taller Sparkline with a hover readout, for the Power section: the
+// pointer ( or the arrow keys ) picks the nearest point and the header shows
+// its value and time instead of the range.
+function PowerChart({ label, points, unit, digits, withDate }) {
+  const [hover, setHover] = useState(null)
+  const fmt = (v) => `${v.toFixed(digits)}${unit}`
+  const when = (t) =>
+    new Date(t * 1000).toLocaleString('en-GB', {
+      ...(withDate ? { day: 'numeric', month: 'short' } : {}),
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  const header = (right) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', color: INK_MUTED, marginBottom: '2px' }}>
+      <span>{label}</span>
+      <span>{right}</span>
+    </div>
+  )
+  if (!points || points.length < 2) {
+    return <div style={{ marginTop: '12px' }}>{header('no history yet')}</div>
+  }
+  const W = 240
+  const H = 44
+  const vals = points.map((p) => p.v)
+  const lo = Math.min(...vals)
+  const hi = Math.max(...vals)
+  const span = hi - lo || 1
+  const x = (i) => (i / (points.length - 1)) * W
+  const y = (v) => H - 3 - ((v - lo) / span) * (H - 6)
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ')
+  const pick = (e) => {
+    const box = e.currentTarget.getBoundingClientRect()
+    const f = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width))
+    setHover(Math.round(f * (points.length - 1)))
+  }
+  const key = (e) => {
+    const last = points.length - 1
+    const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key]
+    if (step == null) return
+    e.preventDefault()
+    setHover((i) => Math.min(last, Math.max(0, (i ?? last) + step)))
+  }
+  const hp = hover != null ? points[hover] : null
+  return (
+    <div style={{ marginTop: '12px' }}>
+      {header(hp ? `${fmt(hp.v)} · ${when(hp.t)}` : `${fmt(lo)} to ${fmt(hi)}`)}
+      <div
+        tabIndex={0}
+        role="img"
+        aria-label={`${label}: ${fmt(lo)} to ${fmt(hi)}, now ${fmt(vals[vals.length - 1])}`}
+        onPointerMove={pick}
+        onPointerDown={pick}
+        onPointerLeave={() => setHover(null)}
+        onFocus={() => setHover(points.length - 1)}
+        onBlur={() => setHover(null)}
+        onKeyDown={key}
+        style={{ position: 'relative', cursor: 'crosshair', touchAction: 'pan-y', outline: 'none' }}
+      >
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: `${H}px`, display: 'block' }}>
+          <line x1="0" x2={W} y1={H - 0.5} y2={H - 0.5} stroke={BORDER} stroke-width="1" vector-effect="non-scaling-stroke" />
+          <path d={d} fill="none" stroke={INK_SECONDARY} stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+          {hp && (
+            <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke={INK_MUTED} stroke-width="1" vector-effect="non-scaling-stroke" />
+          )}
+        </svg>
+        {hp && (
+          <span
+            style={{
+              position: 'absolute',
+              left: `calc(${(x(hover) / W) * 100}% - 4px)`,
+              top: `${y(hp.v) - 4}px`,
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: INK_PRIMARY,
+              boxShadow: `0 0 0 2px ${SURFACE}`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 function PowerSection({ apiBase }) {
   const [w, setW] = useState(null)
 
@@ -1072,23 +1157,48 @@ function PowerSection({ apiBase }) {
       <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 16px', color: INK_PRIMARY }}>Power</h2>
       <Card>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px' }}>
-          <StatTile label="Now" value={watts(w.watts)} detail="all four Pis, from the wall" />
-          <StatTile label="Average" value={watts(w.avgWatts)} detail={`peak ${watts(w.maxWatts)}, ${span}`} />
-          <StatTile
-            label="A month"
-            value={w.monthKWh != null ? `${w.monthKWh.toFixed(1)} kWh` : '-'}
-            detail="at the average above"
-          />
-          <StatTile
-            label="Cost a month"
-            value={w.monthCostGBP != null ? `£${w.monthCostGBP.toFixed(2)}` : '-'}
-            detail={`at ${(w.tariffGBPPerKWh * 100).toFixed(2)}p per kWh`}
-          />
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <StatTile label="Now" value={watts(w.watts)} detail="all four Pis, from the wall" />
+            <PowerChart label="last 24 hours" points={w.wattsHistory} unit=" W" digits={1} />
+          </div>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <StatTile label="Average" value={watts(w.avgWatts)} detail={`peak ${watts(w.maxWatts)}, ${span}`} />
+            <PowerChart label="24 h average, 7 days" points={w.avgHistory} unit=" W" digits={1} withDate />
+          </div>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <StatTile
+              label="Current"
+              value={w.currentA != null ? `${w.currentA.toFixed(2)} A` : '-'}
+              detail={w.powerFactor != null ? `power factor ${w.powerFactor.toFixed(2)}` : 'at the plug'}
+            />
+            <PowerChart label="24 h, 15 min averages" points={w.currentHistory} unit=" A" digits={3} />
+          </div>
+        </div>
+        {/* Same three columns as the charts above; no charts here, a monthly
+            figure from the average would only repeat the average's line. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px', marginTop: '24px' }}>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <StatTile
+              label="A month"
+              value={w.monthKWh != null ? `${w.monthKWh.toFixed(1)} kWh` : '-'}
+              detail="at the average above"
+            />
+          </div>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <StatTile
+              label="Cost a month"
+              value={w.monthCostGBP != null ? `£${w.monthCostGBP.toFixed(2)}` : '-'}
+              detail={`at ${(w.tariffGBPPerKWh * 100).toFixed(2)}p per kWh`}
+            />
+          </div>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }} />
         </div>
         <p style={p}>
           A Pi 4 can't measure its own power use, so a metering smart plug sits in front of the USB hub that feeds
           the whole cluster. Home Assistant reads it over Matter, and Prometheus reads Home Assistant once a minute.
-          The figure includes the hub and the power supplies' losses: it's what the electricity bill sees.
+          The figure includes the hub and the power supplies' losses: it's what the electricity bill sees. The
+          current is higher than the watts suggest because the power supplies draw it in short pulses ( a power
+          factor of about 0.5 ); the bill counts the watts.
         </p>
       </Card>
     </section>
