@@ -50,7 +50,6 @@ SLO_WINDOW_DAYS = int(os.getenv("STATUS_SLO_WINDOW_DAYS", "30"))
 DEFAULT_TARGETS = {
     "Personal site": "https://smega.eu",
     "Cluster dashboard": "https://cluster.smega.eu",
-    "Whoami demo": "https://whoami.smega.eu",
     "Developer tools": "https://tools.smega.eu",
     "SEO Checker": "https://seo.smega.eu",
     "One-time Secret": "https://yaots.smega.eu",

@@ -18,7 +18,7 @@ const (
 	freezeCacheTTL = 30 * time.Second
 	freezeFiring   = `ALERTS{alertname="DeployFreeze",alertstate="firing"}`
 	freezeSince    = `min(ALERTS_FOR_STATE{alertname="DeployFreeze"})`
-	freezeBudgets  = `min by (service) (status_service_error_budget_remaining_ratio{service=~"Cluster dashboard|Whoami demo"})`
+	freezeBudgets  = `min by (service) (status_service_error_budget_remaining_ratio{service="Cluster dashboard"})`
 )
 
 type freezeBudget struct {

@@ -10,7 +10,6 @@ resources:
   - 04-status-web.yaml
   - ../content  # ConfigMap status-content, mounted by status-web
   - 05-status-checker-cronjob.yaml
-  - 06-whoami.yaml
   - 07-gateway.yaml
   - 08-httproutes.yaml
   - 09-dashboard-readonly-rbac.yaml

@@ -5,9 +5,9 @@ tests:
   # A real outage: 2 req/min, then 50% 5xx for 20 minutes -> critical.
   - interval: 1m
     input_series:
-      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="200",pod="a"}'
+      - series: 'kong_http_requests_total{service="httproute.public-dashboard.public-dashboard.0",code="200",pod="a"}'
         values: '0+2x60 120+1x30'
-      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="502",pod="a"}'
+      - series: 'kong_http_requests_total{service="httproute.public-dashboard.public-dashboard.0",code="502",pod="a"}'
         values: '0x60 0+1x30'
     alert_rule_test:
       - eval_time: 55m
@@ -16,17 +16,17 @@ tests:
       - eval_time: 80m
         alertname: TrafficErrorsFastBurn
         exp_alerts:
-          - exp_labels: {severity: critical, service: httproute.public-demo.whoami.0}
+          - exp_labels: {severity: critical, service: httproute.public-dashboard.public-dashboard.0}
             exp_annotations:
-              summary: "httproute.public-demo.whoami.0: visitors are getting 5xx errors"
-              description: "httproute.public-demo.whoami.0 is answering visitors with 5xx errors fast enough to use 2% of its 30-day budget in an hour ( SLO 99.5% ), counted from real traffic at Kong, at least 5 failed requests."
+              summary: "httproute.public-dashboard.public-dashboard.0: visitors are getting 5xx errors"
+              description: "httproute.public-dashboard.public-dashboard.0 is answering visitors with 5xx errors fast enough to use 2% of its 30-day budget in an hour ( SLO 99.5% ), counted from real traffic at Kong, at least 5 failed requests."
               runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/TrafficErrorsFastBurn.md
   # A quiet hour with one 502 among 5 requests: 20% errors, but 1 request -> nothing.
   - interval: 1m
     input_series:
-      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="200",pod="a"}'
+      - series: 'kong_http_requests_total{service="httproute.public-dashboard.public-dashboard.0",code="200",pod="a"}'
         values: '0x30 1 1 2 2 3 3 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4'
-      - series: 'kong_http_requests_total{service="httproute.public-demo.whoami.0",code="502",pod="a"}'
+      - series: 'kong_http_requests_total{service="httproute.public-dashboard.public-dashboard.0",code="502",pod="a"}'
         values: '0x31 1x28'
     alert_rule_test:
       - eval_time: 59m

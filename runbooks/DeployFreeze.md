@@ -4,8 +4,8 @@
 
 ## What fired
 
-A service served from the cluster ( the `service` label: Cluster dashboard
-or Whoami demo ) has spent its 30-day error budget. SLO 99.5% leaves about
+A service served from the cluster ( the `service` label: Cluster dashboard )
+has spent its 30-day error budget. SLO 99.5% leaves about
 216 minutes of failed checks per 30 days, and they are used up.
 
 The error budget policy in `deployments/15-deploy-freeze.yaml` acts on

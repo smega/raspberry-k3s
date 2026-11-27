@@ -31,7 +31,7 @@ spec:
         - alert: DeployFreeze
           expr: |
             min by (service) (
-              status_service_error_budget_remaining_ratio{service=~"Cluster dashboard|Whoami demo"}
+              status_service_error_budget_remaining_ratio{service="Cluster dashboard"}
             ) <= 0
           labels:
             severity: warning

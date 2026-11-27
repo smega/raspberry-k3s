@@ -29,17 +29,6 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: whoami
-  namespace: public-demo
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: whoami
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
   name: dashboard-web
   namespace: public-dashboard
 spec:

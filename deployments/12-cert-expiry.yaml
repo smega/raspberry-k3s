@@ -39,7 +39,6 @@ spec:
         - status.smega.eu:443
         - api-status.smega.eu:443
         - cluster.smega.eu:443
-        - whoami.smega.eu:443
         - tools.smega.eu:443
         - seo.smega.eu:443
         - yaots.smega.eu:443
@@ -69,7 +68,6 @@ spec:
         - status.smega.eu:443
         - api-status.smega.eu:443
         - cluster.smega.eu:443
-        - whoami.smega.eu:443
         - tools.smega.eu:443
         - seo.smega.eu:443
         - yaots.smega.eu:443

@@ -6,8 +6,6 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   small services I run myself, checked every 5 minutes by a Kubernetes
   CronJob on this same cluster, plus live CPU temperature, CPU and memory
   usage of each Pi in the cluster.
-- [whoami.smega.eu](https://whoami.smega.eu) -- a minimal ingress/routing demo
-  ([traefik/whoami](https://github.com/traefik/whoami)).
 - [cluster.smega.eu](https://cluster.smega.eu) -- a readonly dashboard showing
   selected live cluster state (pods, services, deployments, nodes, etc), also
   open source: [cluster-dashboard](https://github.com/smega/cluster-dashboard).
@@ -169,7 +167,7 @@ every second saw 609 good pages and no errors through the whole test.
 
 ### Error budget policy
 
-When a service served from the cluster ( Cluster dashboard, Whoami demo )
+When a service served from the cluster ( the Cluster dashboard )
 has spent its 30-day error budget, new versions stop going out by
 themselves ( `deployments/15-deploy-freeze.yaml` ):
 

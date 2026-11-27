@@ -1,4 +1,4 @@
-# Status page, whoami, the read-only dashboard, the Gateway and routes,
+# Status page, the read-only dashboard, the Gateway and routes,
 # and the SLO / certificate alert rules.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

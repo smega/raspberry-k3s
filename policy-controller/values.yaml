@@ -19,7 +19,7 @@ webhook:
   # failed check does while it's up.
   failurePolicy: Ignore
   configData:
-    # Images no policy covers (traefik/whoami, ...) are fine; only
+    # Images no policy covers ( upstream images ) are fine; only
     # registry.smdoes.eu/raspberry/** has to be signed.
     no-match-policy: allow
   # Measured 2026-11-21: up to 219Mi ( 85% of the old 256Mi limit ), ~47m
