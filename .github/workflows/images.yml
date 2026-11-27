@@ -15,6 +15,7 @@ on:
       - backend/**
       - cron/**
       - alert-diagnostics/**
+      - node-remediator/**
       - pi-temp-led/Dockerfile
       - pi-temp-led/app/**
       - .github/workflows/images.yml
@@ -41,6 +42,7 @@ jobs:
       api: ${{ steps.f.outputs.api == 'true' || inputs.all == true }}
       checker: ${{ steps.f.outputs.checker == 'true' || inputs.all == true }}
       diag: ${{ steps.f.outputs.diag == 'true' || inputs.all == true }}
+      remediator: ${{ steps.f.outputs.remediator == 'true' || inputs.all == true }}
       led: ${{ steps.f.outputs.led == 'true' || inputs.all == true }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,6 +64,9 @@ jobs:
             diag:
               - *shared
               - alert-diagnostics/**
+            remediator:
+              - *shared
+              - node-remediator/**
             led:
               - *shared
               - pi-temp-led/Dockerfile
@@ -118,6 +123,19 @@ jobs:
     with:
       image: alert-diagnostics
       context: alert-diagnostics
+    secrets: inherit
+
+  node-remediator:
+    needs: changes
+    if: needs.changes.outputs.remediator == 'true'
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    with:
+      image: node-remediator
+      context: node-remediator
     secrets: inherit
 
   pi-temp-led:

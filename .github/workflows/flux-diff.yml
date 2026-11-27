@@ -19,6 +19,7 @@ on:
       - backend/**
       - cron/**
       - alert-diagnostics/**
+      - node-remediator/**
       - loadtest/**
       - tools/**
       - postmortems/**

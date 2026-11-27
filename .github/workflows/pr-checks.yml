@@ -14,6 +14,7 @@ on:
       - backend/**
       - cron/**
       - alert-diagnostics/**
+      - node-remediator/**
       - pi-temp-led/Dockerfile
       - pi-temp-led/app/**
       - .github/workflows/build-image.yml
@@ -34,6 +35,7 @@ jobs:
       api: ${{ steps.f.outputs.api }}
       checker: ${{ steps.f.outputs.checker }}
       diag: ${{ steps.f.outputs.diag }}
+      remediator: ${{ steps.f.outputs.remediator }}
       led: ${{ steps.f.outputs.led }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,6 +58,9 @@ jobs:
             diag:
               - *shared
               - alert-diagnostics/**
+            remediator:
+              - *shared
+              - node-remediator/**
             led:
               - *shared
               - pi-temp-led/Dockerfile
@@ -92,6 +97,14 @@ jobs:
     # What build-image.yml declares; with push off, nothing uses them.
     permissions: {contents: read, id-token: write, security-events: write}
     with: {image: alert-diagnostics, context: alert-diagnostics, push: false, security-tab: false}
+
+  node-remediator:
+    needs: changes
+    if: needs.changes.outputs.remediator == 'true'
+    uses: ./.github/workflows/build-image.yml
+    # What build-image.yml declares; with push off, nothing uses them.
+    permissions: {contents: read, id-token: write, security-events: write}
+    with: {image: node-remediator, context: node-remediator, push: false, security-tab: false}
 
   pi-temp-led:
     needs: changes
