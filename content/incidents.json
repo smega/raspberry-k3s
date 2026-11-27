@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-11-26",
+    "title": "One slow SD card failed two releases without an error",
+    "impact": "none",
+    "duration": "about a day and a half of a slowing node; two releases rolled back, the old version served throughout",
+    "what": "One Pi's SD card, from 2016, slowed down without reporting a single error: a synced write went from 8-17 ms to 700-2400 ms. Pods on that node took 3-5 minutes to start. Two releases of this page went out as canaries, the new copy landed on that Pi, didn't get ready within the 5 minutes allowed, and Flagger rolled both back. Visitors kept getting the old version. The alert meant to catch a slowing card wanted a week of history and had three days, so nothing fired.",
+    "fix": "The card was replaced with a clone: same partition table and IDs, so nothing on the node had to change. New alerts: a card whose daily median write is over 100 ms, an hour of high iowait, and slow pod starts. Backtested on this data, the first would have fired hours before the first failed release. The Cluster tab now shows each card's age, how many times it has been written over, and its write time.",
+    "lesson": "A failed canary is a symptom, not a cause. Hardware that slows down instead of breaking passes every health check.",
+    "link": "https://github.com/smega/raspberry-k3s/commit/8d07dc3"
+  },
+  {
     "date": "2026-11-23",
     "title": "This page showed 95-minute-old results after a game day",
     "impact": "outage",
