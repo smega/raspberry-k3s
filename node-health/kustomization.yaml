@@ -1,0 +1,7 @@
+# A node that is Ready but sick: Node Problem Detector marks it,
+# node-remediator moves its pods. Applied by Flux ( clusters/home/node-health.yaml ).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - node-problem-detector.yaml
+  - node-remediator.yaml

@@ -65,6 +65,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
 - `image-policies/` -- what the policy-controller requires of every own
   image at admission: the CI signature, an SBOM and SLSA provenance.
 - `loadtest/` -- a k6 ramp test run as a Job, and its results.
+- `node-health/` and `node-remediator/` -- a node that is Ready but sick
+  ( a slow SD card ) is cordoned and drained by itself; see "Sick nodes
+  drain themselves" below.
 - `kured/` -- automatic, one-at-a-time node reboots after OS updates
   (Mon/Tue/Thu 03:00-06:00, never while an alert is firing).
 - `system-upgrade/` -- system-upgrade-controller and the Plans that keep
@@ -289,6 +292,31 @@ of 100), fetched again only when a deploy's commit isn't in it yet: the
 home IP shares GitHub's 60 unauthenticated requests an hour with
 everything else, and one request per commit used them up on the first
 day.
+
+## Sick nodes drain themselves
+
+Twice a slow SD card left a Pi Ready and useless ( incident log,
+2026-11-23 and 2026-11-26 ): the kubelet reported fine, containers took
+minutes to start or never did, and Kubernetes moved nothing, because it
+only moves pods off a node that stops reporting. Both times I drained it
+by hand.
+
+```
+detect    Node Problem Detector ( every node ): 10 fsynced 4 KB writes
+          every 5 min; 4 rounds in a row over 100 ms -> SDCardSlow=True
+act       node-remediator ( Go, on kube-master ): cordon, evict like
+          kubectl drain, PDBs honoured
+heal      4 rounds under 50 ms -> condition False; 15 min later uncordon
+tell      NodeAutoCordoned to the phone, Events and annotations on the node
+```
+
+What it won't do: touch the control plane, hold more than one node, act
+when another node is cordoned or NotReady, leave fewer than two healthy
+workers, move pods whose volume is on that node ( they would only wait in
+Pending ), or cordon the same node again within 6 hours of letting it go.
+It reads node conditions, not Prometheus: on 2026-11-23 the service that
+reported pod states ran on the sick node. Details and the game day:
+[runbooks/NodeAutoCordoned.md](runbooks/NodeAutoCordoned.md).
 
 ## Logs and traces
 

@@ -51,6 +51,10 @@ webhook, so the alert itself never waits for it or depends on it.
 | [SDCardKernelErrors](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |
 | [NodeRootFilesystemReadOnly](SDCardKernelErrors.md) | critical | `monitoring/sd-card-health.yaml` |
 | [SDCardProbeMissing](SDCardKernelErrors.md) | warning | `monitoring/sd-card-health.yaml` |
+| [NodeAutoCordoned](NodeAutoCordoned.md) | warning | `node-health/node-remediator.yaml` |
+| [NodeProblemNotRemediated](NodeAutoCordoned.md) | warning | `node-health/node-remediator.yaml` |
+| [NodeDrainStuck](NodeAutoCordoned.md) | warning | `node-health/node-remediator.yaml` |
+| [NodeRemediatorDown](NodeAutoCordoned.md) | warning | `node-health/node-remediator.yaml` |
 
 `NodeMaintenance` (same file) has no page: it notifies no one, it only
 inhibits the drain and reboot noise while a node is cordoned.

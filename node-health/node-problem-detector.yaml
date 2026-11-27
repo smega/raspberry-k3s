@@ -1,0 +1,203 @@
+# Node Problem Detector: one check of our own, turned into a node
+# condition ( SDCardSlow ) that node-remediator acts on.
+#
+# Twice a slow SD card left a node Ready and useless ( 2026-11-23,
+# 2026-11-26 ): the kubelet reported fine, containers took minutes to
+# start or never did. The check times what hurt there, small writes each
+# with its own fsync, on the node's root filesystem ( the card ).
+#
+# Every 5 minutes, 10 x 4 KB. Slow means every one of the last 4 rounds
+# averaged over 100 ms ( 20 minutes in a row ); healthy again means all 4
+# under 50 ms. Healthy cards here: 1-40 ms, with single evening spikes to
+# 330-430 ms on kube-slave1 ( 11-24, 11-25 ) that one round can't trip.
+# The old kube-slave2 card took 700-2400 ms for a day and a half. A write
+# that fails or hangs past 40 s counts as slow, so a root filesystem gone
+# read-only trips it too.
+#
+# About 12 MB written a day per node, next to 6-30 GB of normal writes.
+#
+# For a game day: `touch /var/lib/node-problem-detector/force-slow` on a
+# node makes the next round report slow; removing it makes the next one
+# healthy ( game-days/node-remediation.sh in the infra repo ).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-problem-detector
+  namespace: kube-system
+data:
+  sd-card-monitor.json: |
+    {
+      "plugin": "custom",
+      "pluginConfig": {
+        "invoke_interval": "300s",
+        "timeout": "60s",
+        "max_output_length": 200,
+        "concurrency": 1,
+        "enable_message_change_based_condition_update": false
+      },
+      "source": "sd-card-monitor",
+      "metricsReporting": true,
+      "conditions": [
+        {
+          "type": "SDCardSlow",
+          "reason": "SyncWritesNormal",
+          "message": "synced 4 KB writes are fast"
+        }
+      ],
+      "rules": [
+        {
+          "type": "permanent",
+          "condition": "SDCardSlow",
+          "reason": "SyncWritesSlow",
+          "path": "/custom/sd-sync-write.sh",
+          "timeout": "60s"
+        }
+      ]
+    }
+  sd-sync-write.sh: |
+    #!/bin/bash
+    # Exit 0: healthy, 1: slow. The state survives a restart of the pod
+    # ( hostPath ), so a sick node doesn't look healthy for 20 minutes.
+    set -u
+    dir=/state
+    hist=$dir/sd-history
+    state=$dir/sd-state
+    n=10
+    rounds=4
+    slow_ms=100
+    fast_ms=50
+
+    if [ -e "$dir/force-slow" ]; then
+      touch "$dir/forced"
+      echo slow > "$state"
+      echo "forced slow by $dir/force-slow ( game day )"
+      exit 1
+    fi
+    if [ -e "$dir/forced" ]; then
+      # The game day is over: start clean, healthy.
+      rm -f "$dir/forced" "$hist"
+      echo ok > "$state"
+    fi
+
+    t0=$(date +%s%N)
+    if timeout 40 bash -c "for i in \$(seq $n); do dd if=/dev/zero of=$dir/probe bs=4k count=1 conv=fsync status=none || exit 1; done"; then
+      ms=$(( ($(date +%s%N) - t0) / 1000000 / n ))
+    else
+      ms=9999
+    fi
+    rm -f "$dir/probe"
+
+    { cat "$hist" 2>/dev/null; echo "$ms"; } | tail -n $rounds > "$hist.tmp" && mv "$hist.tmp" "$hist"
+    last=$(tr '\n' ' ' < "$hist")
+    count=$(wc -l < "$hist")
+    now=$(cat "$state" 2>/dev/null || echo ok)
+    if [ "$count" -ge $rounds ]; then
+      if awk -v t=$slow_ms '$1 <= t { bad = 1 } END { exit bad }' "$hist"; then
+        now=slow
+      elif awk -v t=$fast_ms '$1 >= t { bad = 1 } END { exit bad }' "$hist"; then
+        now=ok
+      fi
+    fi
+    echo "$now" > "$state"
+
+    if [ "$now" = slow ]; then
+      echo "synced 4 KB write ${ms} ms, last rounds: ${last}ms ( slow: ${rounds} rounds in a row over ${slow_ms} ms; healthy when ${rounds} are under ${fast_ms} )"
+      exit 1
+    fi
+    echo "synced 4 KB write ${ms} ms, last rounds: ${last}ms"
+    exit 0
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-problem-detector
+  namespace: kube-system
+---
+# Kubernetes' own role for it: get nodes, patch node status, create events.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-problem-detector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:node-problem-detector
+subjects:
+  - kind: ServiceAccount
+    name: node-problem-detector
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-problem-detector
+  namespace: kube-system
+  labels:
+    app: node-problem-detector
+spec:
+  selector:
+    matchLabels:
+      app: node-problem-detector
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: node-problem-detector
+    spec:
+      serviceAccountName: node-problem-detector
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: node-problem-detector
+          image: registry.k8s.io/node-problem-detector/node-problem-detector:v1.37.0
+          command:
+            - /node-problem-detector
+            - --logtostderr
+            - --config.custom-plugin-monitor=/custom/sd-card-monitor.json
+            - --prometheus-address=0.0.0.0
+            - --prometheus-port=20257
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # Root for the hostPath state directory ( root-owned ), nothing
+          # else: no capabilities, not privileged. The upstream manifest is
+          # privileged for /dev/kmsg, which only its kernel monitors read.
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          ports:
+            - name: metrics
+              containerPort: 20257
+          resources:
+            requests:
+              cpu: 5m
+              memory: 24Mi
+            limits:
+              memory: 96Mi
+          volumeMounts:
+            - name: config
+              mountPath: /custom
+              readOnly: true
+            - name: state
+              mountPath: /state
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: node-problem-detector
+            defaultMode: 0755
+        - name: state
+          hostPath:
+            path: /var/lib/node-problem-detector
+            type: DirectoryOrCreate
+        - name: tmp
+          emptyDir: {}
