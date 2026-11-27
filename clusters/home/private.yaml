@@ -1,5 +1,5 @@
 # The private half (smega/raspberry-k3s-private): probes with private
-# hostnames/IPs and the devlog app. Read with a read-only deploy key kept in
+# hostnames/IPs. Read with a read-only deploy key kept in
 # the Secret flux-system/raspberry-k3s-private (created by hand).
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository

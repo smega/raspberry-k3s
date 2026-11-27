@@ -135,14 +135,12 @@ data:
         ("api-status.smega.eu", "/api/status"),
         ("whoami.smega.eu", "/"),
         ("cluster.smega.eu", "/"),
-        ("log.smega.eu", "/"),
     ]
     # The serving Deployments ( Flagger's -primary copies, not the canaries ).
     TARGETS = [
         ("public-demo", "status-web-primary"),
         ("public-demo", "status-api-primary"),
         ("public-demo", "whoami"),
-        ("public-demo", "devlog-web"),
         ("public-dashboard", "dashboard-web"),
         ("public-dashboard", "dashboard-backend"),
     ]

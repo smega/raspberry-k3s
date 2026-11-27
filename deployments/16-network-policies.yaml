@@ -53,7 +53,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [status-web, status-web-primary, status-api, status-api-primary, whoami, devlog-web]
+        values: [status-web, status-web-primary, status-api, status-api-primary, whoami]
   policyTypes: [Ingress]
   ingress:
     - from:
