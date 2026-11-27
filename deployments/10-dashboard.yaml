@@ -59,7 +59,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: registry.smdoes.eu/raspberry/dashboard-backend:main-1795343517-c4b7435 # {"$imagepolicy": "flux-system:dashboard-backend"}
+          image: registry.smdoes.eu/raspberry/dashboard-backend:main-1795814627-71c8f4a # {"$imagepolicy": "flux-system:dashboard-backend"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -163,7 +163,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: registry.smdoes.eu/raspberry/dashboard-web:main-1795343520-c4b7435 # {"$imagepolicy": "flux-system:dashboard-web"}
+          image: registry.smdoes.eu/raspberry/dashboard-web:main-1795814625-71c8f4a # {"$imagepolicy": "flux-system:dashboard-web"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

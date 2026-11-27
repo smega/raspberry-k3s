@@ -41,7 +41,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: registry.smdoes.eu/raspberry/status-api:main-1795810451-cd2a1ac # {"$imagepolicy": "flux-system:status-api"}
+          image: registry.smdoes.eu/raspberry/status-api:main-1795814607-5fdbe14 # {"$imagepolicy": "flux-system:status-api"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
