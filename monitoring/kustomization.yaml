@@ -13,6 +13,7 @@ resources:
   - dns-probe.yaml
   - home-power-rules.yaml
   - node-runtime-rules.yaml
+  - dashboard-status-api-requests.yaml
   - node-disk-rules.yaml
   - alert-diagnostics.yaml
   - network-policies.yaml

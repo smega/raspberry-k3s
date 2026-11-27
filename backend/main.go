@@ -10,8 +10,10 @@
 //	/api/traffic     what visitors got over the last day ( Kong's metrics )
 //	/api/power       what the cluster draws from the wall ( a metering plug )
 //	/api/dora        the four DORA metrics
+//	/api/supply-chain the own images running, by digest, and their fixable CVEs
 //
-// and /metrics on :9100 for Prometheus. Released as a canary
+// and /metrics ( the checker's results ) and /metrics/requests ( request
+// durations with trace exemplars ) on :9100 for Prometheus. Released as a canary
 // ( deployments/18-status-api-canary.yaml ).
 package main
 
@@ -33,7 +35,7 @@ func main() {
 
 	initTracing()
 	router := gin.New()
-	router.Use(gin.Recovery(), tracing(), requestLog())
+	router.Use(gin.Recovery(), tracing(), requestLog(), requestMetrics())
 
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -105,6 +107,7 @@ func main() {
 	freeze := &freezeCache{prom: prom}
 	traffic := &trafficCache{prom: prom}
 	power := &powerCache{prom: prom}
+	supply := &supplyCache{prom: prom}
 	dora := &doraCache{prom: prom, commits: &commitTimes{http: &http.Client{Timeout: 5 * time.Second, Transport: tracedTransport()}, known: map[string]int64{}}}
 
 	router.GET("/api/nodes", func(c *gin.Context) {
@@ -157,6 +160,16 @@ func main() {
 		c.JSON(http.StatusOK, resp)
 	})
 
+	router.GET("/api/supply-chain", func(c *gin.Context) {
+		resp, err := supply.get(c.Request.Context())
+		if err != nil {
+			log.Printf("could not read the supply chain: %v", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "supply chain not available"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
 	router.GET("/api/dora", func(c *gin.Context) {
 		resp, err := dora.get(c.Request.Context())
 		if err != nil {
@@ -172,6 +185,7 @@ func main() {
 		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 			writeMetrics(w, dataFile)
 		})
+		mux.Handle("/metrics/requests", requestMetricsHandler())
 		log.Printf("metrics listening on :9100")
 		if err := http.ListenAndServe(":9100", mux); err != nil {
 			log.Fatalf("metrics server failed: %v", err)

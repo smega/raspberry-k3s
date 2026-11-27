@@ -1454,11 +1454,168 @@ function Footer() {
   )
 }
 
+// Every own image running in the cluster, by the digest that runs, from
+// status-api's /api/supply-chain ( Prometheus: kube-state-metrics for
+// what runs, Trivy Operator for what is wrong with it ).
+function SupplyChainView({ apiBase }) {
+  const [d, setD] = useState(null)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    fetch(`${apiBase}/api/supply-chain`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+      .then(setD, () => setError(true))
+  }, [apiBase])
+
+  const day = (ts) =>
+    new Date(ts * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  const p = { margin: '0 0 12px', fontSize: '14px', color: INK_SECONDARY, lineHeight: 1.6 }
+  const th = { textAlign: 'left', fontWeight: 500, color: INK_MUTED, fontSize: '12px', padding: '0 16px 8px 0', whiteSpace: 'nowrap' }
+  const td = { padding: '10px 16px 10px 0', borderTop: `1px solid ${BORDER}`, verticalAlign: 'top', fontSize: '13px', color: INK_SECONDARY }
+  const link = { color: INK_PRIMARY }
+  const repoLink = (path) => `https://github.com/smega/raspberry-k3s/blob/main/${path}`
+
+  const images = d ? d.images || [] : []
+  const verified = images.filter((i) => i.verifiedAtAdmission).length
+  const fixable = images.reduce((n, i) => n + i.critical + i.high, 0)
+  const tp = d ? d.thirdParty : null
+
+  return (
+    <>
+      <PageIntro title="Supply chain">
+        Every image of mine that runs here, by the digest that is actually running: which commit it was built from,
+        whether the cluster checked where it came from before starting it, and what is known to be wrong with it.
+      </PageIntro>
+      {error && <p style={{ color: CRITICAL, fontSize: '14px' }}>Could not load the supply chain.</p>}
+      {!d && !error && <p style={{ color: INK_MUTED, fontSize: '14px' }}>Loading...</p>}
+      {d && (
+        <>
+          <Card>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 32px' }}>
+              <StatTile label="Own images running" value={images.length} detail="distinct digests, all namespaces" />
+              <StatTile
+                label="Checked at admission"
+                value={`${verified} of ${images.length}`}
+                detail="signature, SBOM and provenance"
+              />
+              <StatTile
+                label="Fixable HIGH or CRITICAL"
+                value={fixable}
+                detail={fixable ? 'in my images, fix released upstream' : 'in my images'}
+              />
+              {tp && (
+                <StatTile
+                  label="Third-party images"
+                  value={tp.images}
+                  detail={`${tp.withCritical} with a fixable CRITICAL, ${tp.withHigh} with a fixable HIGH`}
+                />
+              )}
+            </div>
+          </Card>
+
+          <section style={{ marginTop: '32px' }}>
+            <Card>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: '640px' }}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Image</th>
+                      <th style={th}>Built</th>
+                      <th style={th}>From</th>
+                      <th style={th}>Runs in</th>
+                      <th style={th}>Checked at admission</th>
+                      <th style={th}>Fixable CVEs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {images.map((i) => (
+                      <tr key={i.digest}>
+                        <td style={td}>
+                          <div style={{ color: INK_PRIMARY, fontWeight: 500 }}>{i.name}</div>
+                          <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: INK_MUTED }}>
+                            {i.digest.slice(0, 19)}...
+                          </div>
+                        </td>
+                        <td style={{ ...td, whiteSpace: 'nowrap' }}>{i.builtAt ? day(i.builtAt) : '-'}</td>
+                        <td style={td}>
+                          {i.commit ? (
+                            <a href={`https://github.com/${i.repo}/commit/${i.commit}`} style={link}>
+                              {i.repo.split('/')[1]}@{i.commit}
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                        <td style={td}>{i.namespaces.join(', ')}</td>
+                        <td style={td}>
+                          {i.verifiedAtAdmission ? (
+                            <span style={{ color: GOOD, fontWeight: 500 }}>✓ verified</span>
+                          ) : (
+                            <span>signed in CI, not checked here</span>
+                          )}
+                        </td>
+                        <td style={td}>
+                          {i.critical + i.high === 0 ? (
+                            <span style={{ color: GOOD, fontWeight: 500 }}>none</span>
+                          ) : (
+                            <span style={{ color: CRITICAL, fontWeight: 500 }}>
+                              {[i.critical && `${i.critical} critical`, i.high && `${i.high} high`].filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </section>
+
+          <section style={{ marginTop: '48px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 16px', color: INK_PRIMARY }}>How it works</h2>
+            <Card>
+              <div style={{ maxWidth: '720px' }}>
+                <p style={p}>
+                  <strong style={{ color: INK_PRIMARY }}>Built in one place.</strong> Every image is built by one GitHub
+                  Actions workflow on the main branch, for arm64, tagged with its build time and commit. The same job
+                  signs it with cosign, keyless: the certificate names that workflow, and the signature goes into
+                  Sigstore's public transparency log. It also attaches two attestations: an SBOM ( SPDX, every package
+                  in the image ) and SLSA provenance ( which workflow built it, from which commit ).
+                </p>
+                <p style={p}>
+                  <strong style={{ color: INK_PRIMARY }}>Checked before it runs.</strong> In the namespaces that serve
+                  the public, a policy controller checks all three at admission: the signature, the SBOM and the
+                  provenance, and that the builder is that workflow on main. An image pushed by hand, built from a
+                  branch, or signed by anyone else is rejected ({' '}
+                  <a href={repoLink('image-policies/raspberry-images.yaml')} style={link}>
+                    signature policy
+                  </a>
+                  ,{' '}
+                  <a href={repoLink('image-policies/raspberry-attestations.yaml')} style={link}>
+                    attestation policy
+                  </a>{' '}
+                  ). The monitoring tools run elsewhere: signed by the same workflow, not checked again at start.
+                </p>
+                <p style={{ ...p, margin: 0 }}>
+                  <strong style={{ color: INK_PRIMARY }}>Rescanned every day.</strong> Trivy Operator scans every
+                  running image daily, mine and third-party, and counts the HIGH and CRITICAL vulnerabilities that
+                  already have a fix. One in my images is an alert to my phone: rebuilding picks up the fixed packages.
+                  Third-party images wait for their upstream release.
+                </p>
+              </div>
+            </Card>
+          </section>
+        </>
+      )}
+    </>
+  )
+}
+
 // Views behind a hash ("#cluster"), so each has its own shareable URL
 // without needing a router or server-side routes.
 const TABS = [
   { id: 'services', label: 'Services', hash: '' },
   { id: 'cluster', label: 'Cluster', hash: '#cluster' },
+  { id: 'supply', label: 'Supply chain', hash: '#supply-chain' },
   { id: 'incidents', label: 'Incidents', hash: '#incidents' },
 ]
 
@@ -1676,6 +1833,8 @@ function App() {
       <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 20px 60px' }}>
         {tab === 'cluster' ? (
           <ClusterView apiBase={apiBase} />
+        ) : tab === 'supply' ? (
+          <SupplyChainView apiBase={apiBase} />
         ) : tab === 'incidents' ? (
           <IncidentsView />
         ) : (

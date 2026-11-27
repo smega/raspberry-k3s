@@ -38,6 +38,11 @@ spec:
       # this Prometheus overwrites it with the Kubernetes Service
       # ("status-api") and the original ends up in exported_service.
       honorLabels: true
+    # Request durations with trace exemplars, as OpenMetrics
+    # ( backend/requestmetrics.go ).
+    - port: metrics
+      path: /metrics/requests
+      interval: 30s
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

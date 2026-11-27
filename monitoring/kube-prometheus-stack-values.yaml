@@ -49,6 +49,13 @@ grafana:
         memory: 96Mi
       limits:
         memory: 192Mi
+    # The Prometheus datasource the chart provisions: an exemplar's
+    # trace_id ( status-api's request durations, backend/requestmetrics.go )
+    # opens that trace in Tempo.
+    datasources:
+      exemplarTraceIdDestinations:
+        datasourceUid: tempo
+        traceIdLabelName: trace_id
   # Dashboards/users live in SQLite on this PVC (local-path, 20Gi).
   persistence:
     enabled: true
@@ -111,6 +118,10 @@ prometheus:
   ingress:
     enabled: false
   prometheusSpec:
+    # Exemplars: a sample trace id per histogram bucket, kept in memory
+    # ( 100k by default, a few MB ). Only status-api's request durations
+    # carry them.
+    enableFeatures: [exemplar-storage]
     # TSDB on the USB stick in kube-master (prometheus-storage/), so a
     # restart no longer wipes the history. 30d covers the SLO window; the
     # size cap leaves headroom on the 57 GB stick (PV is 50Gi).

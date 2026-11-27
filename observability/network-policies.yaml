@@ -3,7 +3,7 @@
 # from Loki. Egress stays open: Alloy reads every pod's logs through the
 # API server, and egress rules would add little here.
 #
-#   Alloy 4317/4318  traces from status-api and the status checker
+#   Alloy 4317/4318  traces from Kong's gateways, status-api and the checker
 #   Loki 3100        Alloy ( same namespace ), Grafana, alert-diagnostics
 #   Tempo 3200       Grafana
 #   anything         this namespace itself, Prometheus, and the API server
@@ -62,6 +62,12 @@ spec:
               - key: app
                 operator: In
                 values: [status-api, status-api-primary, status-checker]
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kong
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
       ports:
         - { protocol: TCP, port: 4317 }
         - { protocol: TCP, port: 4318 }

@@ -1,0 +1,27 @@
+# Traces start at the gateway. The opentelemetry plugin, on every route
+# ( global ), makes a span for each request and its call to the upstream,
+# and sends a W3C traceparent header upstream, so status-api's spans
+# ( backend/tracing.go ) hang under Kong's in the same trace: what a
+# visitor waited, then what the API did with that time.
+#
+# Every request is traced ( ~9000 a day, kong-values.yaml sets the
+# instrumentations ): Tempo keeps 24 hours. Spans go to Alloy over OTLP
+# HTTP ( observability/ ), like the apps'.
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: opentelemetry
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+plugin: opentelemetry
+config:
+  traces_endpoint: http://alloy.observability.svc:4318/v1/traces
+  resource_attributes:
+    service.name: kong
+  sampling_rate: 1
+  propagation:
+    extract: [w3c]
+    inject: [w3c]
+    default_format: w3c

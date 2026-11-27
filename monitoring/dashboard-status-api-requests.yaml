@@ -1,0 +1,106 @@
+# A Grafana dashboard for status-api's request durations, with exemplars:
+# each dot is one request, and clicking it opens its trace in Tempo
+# ( exemplarTraceIdDestinations in kube-prometheus-stack-values.yaml ).
+# Picked up by the Grafana sidecar through the grafana_dashboard label.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-status-api-requests
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  status-api-requests.json: |
+    {
+      "title": "status-api requests",
+      "uid": "status-api-requests",
+      "tags": [
+        "status-page",
+        "tracing"
+      ],
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "description": "Request durations from status-api with trace exemplars: a dot is one request; click it for its trace in Tempo ( Kong -> status-api -> Prometheus/GitHub ).",
+      "panels": [
+        {
+          "id": 1,
+          "type": "timeseries",
+          "title": "p90 by route ( dots: single requests, click for the trace )",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.9, sum by (le, route) (rate(status_api_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "{{route}}",
+              "exemplar": true
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Requests per second by route and code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route, code) (rate(status_api_request_duration_seconds_count[5m]))",
+              "legendFormat": "{{route}} {{code}}",
+              "exemplar": false
+            }
+          ]
+        }
+      ]
+    }

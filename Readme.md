@@ -324,7 +324,7 @@ reported pod states ran on the sick node. Details and the game day:
 
 ```
 pods' stdout --(Kubernetes API)--> Alloy --> Loki (3 days)
-status-api, checker --(OTLP)-----> Alloy --> Tempo (24 h)
+Kong, status-api, checker --(OTLP)--> Alloy --> Tempo (24 h)
                                   Grafana: Prometheus, Loki, Tempo
 ```
 
@@ -338,6 +338,15 @@ status-api, checker --(OTLP)-----> Alloy --> Tempo (24 h)
   (4xx/5xx) and slow (250 ms+) requests, each line with the trace id. **The checker** makes one trace per run, a span
   per site with the HTTP request under it; a failed check's line carries
   the trace id. Both export only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+- **Kong** starts the trace: a global opentelemetry plugin
+  ( `kong/tracing.yaml` ) makes a span for each request and its upstream
+  call and passes a W3C traceparent on, so status-api's spans sit under
+  the gateway's. Every request is traced, ~9000 a day.
+- **Exemplars:** status-api's `status_api_request_duration_seconds`
+  ( `/metrics/requests`, OpenMetrics ) carries a trace id per bucket;
+  Prometheus keeps them ( `exemplar-storage` ). On the Grafana dashboard
+  "status-api requests" a dot on the latency chart is one request, and
+  clicking it opens its trace.
 - **Grafana** (`monitoring/kube-prometheus-stack-values.yaml`): a log line
   links to its trace, a trace to the log lines with its id.
 - Loki and Tempo run as single processes on kube-slave1/3 (not the
@@ -422,6 +431,13 @@ fixes it and Renovate opens that PR. The first scan found 5 HIGH in the
 status checker, partly inside pip's own vendored packages ( pip is gone
 from that image now ), and an Alpine libxml2 in two web images; all
 fixed before the alert went live.
+
+The status page's **Supply chain** tab ( `#supply-chain`, status-api's
+`/api/supply-chain`, `backend/supplychain.go` ) shows every own image that
+runs, by digest: build date, the commit it came from, where it runs,
+whether admission checked its signature, SBOM and provenance there, and
+its fixable CVEs. From Prometheus only: kube-state-metrics for what runs,
+the Trivy Operator's metrics for what is wrong with it.
 
 ## Network policies: default deny
 

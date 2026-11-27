@@ -6,6 +6,7 @@ resources:
   - kong.yaml
   - network-policies.yaml
   - metrics.yaml
+  - tracing.yaml
 configMapGenerator:
   - name: kong-values
     namespace: kong

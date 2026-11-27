@@ -83,6 +83,10 @@ gateway:
     # has a dozen routes. Each gateway used 300-390 MiB on every Pi
     # (2026-11-19).
     mem_cache_size: "32m"
+    # Spans for the OpenTelemetry plugin ( tracing.yaml ): the request and
+    # the call to the upstream. Every request: ~9000 a day here.
+    tracing_instrumentations: "request,balancer"
+    tracing_sampling_rate: "1.0"
   manager:
     enabled: false
   portal:
