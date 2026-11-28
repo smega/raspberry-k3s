@@ -26,7 +26,7 @@ a few minutes a day. Left alone, the service ends the month below its SLO.
    kubectl -n public-demo logs job/<newest>
    ```
    Timeouts (8s) vs HTTP errors vs connection refused.
-3. In Grafana, `status:error_ratio:avg1d{service="<name>"}` over the last
+3. In Grafana, `slo:sli_error:ratio_rate1d{sloth_id="status-checks-availability",service="<name>"}` over the last
    week: getting worse or a one-off?
 
 ## Fix

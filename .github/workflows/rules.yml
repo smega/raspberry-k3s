@@ -1,0 +1,34 @@
+# The alert rules' unit tests ( tools/rule-tests, promtool ) and a check
+# that deployments/21-slos.generated.yaml is what slo/generate.sh makes
+# from the SLO specs: a spec changed without regenerating fails here.
+name: rules
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - deployments/**
+      - monitoring/**
+      - flagger/**
+      - slo/**
+      - tools/rule-tests/**
+      - .github/workflows/rules.yml
+  pull_request:
+    paths: *paths
+
+permissions:
+  contents: read
+
+jobs:
+  rules:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generated SLO rules are current
+        run: |
+          sh slo/generate.sh
+          git diff --exit-code deployments/21-slos.generated.yaml
+      - name: Rule unit tests
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
+          sh tools/rule-tests/run.sh

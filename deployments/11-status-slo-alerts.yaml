@@ -55,24 +55,11 @@ spec:
   groups:
     - name: status-slo.recording
       interval: 1m
-      # status-api runs 2 replicas and both export the same values;
-      # averaging away instance/pod leaves one series per service (and a
-      # rollout no longer starts a new one).
+      # The error ratios per window are Sloth's ( slo/status-checks.yaml ->
+      # 21-slos.generated.yaml: slo:sli_error:ratio_rate<window> with
+      # sloth_id="status-checks-availability" ). This one is the guard
+      # Sloth can't express.
       rules:
-        - record: status:error_ratio:avg5m
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[5m]))
-        - record: status:error_ratio:avg30m
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[30m]))
-        - record: status:error_ratio:avg1h
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[1h]))
-        - record: status:error_ratio:avg2h
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[2h]))
-        - record: status:error_ratio:avg6h
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[6h]))
-        - record: status:error_ratio:avg1d
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[1d]))
-        - record: status:error_ratio:avg3d
-          expr: 1 - avg without (instance, pod) (avg_over_time(status_service_up[3d]))
         # Failed checks in the last hour. The checker runs every 5 minutes
         # and status_service_up holds each result until the next run, so a
         # 5-minute subquery step sees each check once.
@@ -87,10 +74,14 @@ spec:
             # for 5 of 60 minutes, 8.3%, already over 14.4x the budget. On
             # 2026-11-24 a single 04:00 timeout ( the home connection's
             # nightly blip ) paged as critical.
-            (status:error_ratio:avg1h > (14.4 * 0.005) and status:error_ratio:avg5m > (14.4 * 0.005)
-              and status:failed_checks:1h >= 2)
-            or
-            (status:error_ratio:avg6h > (6 * 0.005) and status:error_ratio:avg30m > (6 * 0.005))
+            max without (sloth_id, sloth_service, sloth_slo, sloth_window) (
+              (slo:sli_error:ratio_rate1h{sloth_id="status-checks-availability"} > (14.4 * 0.005)
+                and on (service) slo:sli_error:ratio_rate5m{sloth_id="status-checks-availability"} > (14.4 * 0.005)
+                and on (service) status:failed_checks:1h >= 2)
+              or
+              (slo:sli_error:ratio_rate6h{sloth_id="status-checks-availability"} > (6 * 0.005)
+                and on (service) slo:sli_error:ratio_rate30m{sloth_id="status-checks-availability"} > (6 * 0.005))
+            )
           labels:
             severity: critical
           annotations:
@@ -104,9 +95,11 @@ spec:
 
         - alert: StatusSLOSlowBurn
           expr: |
-            (status:error_ratio:avg1d > (3 * 0.005) and status:error_ratio:avg2h > (3 * 0.005))
-            or
-            (status:error_ratio:avg3d > 0.005 and status:error_ratio:avg6h > 0.005)
+            max without (sloth_id, sloth_service, sloth_slo, sloth_window) (
+              (slo:sli_error:ratio_rate1d{sloth_id="status-checks-availability"} > (3 * 0.005) and on (service) slo:sli_error:ratio_rate2h{sloth_id="status-checks-availability"} > (3 * 0.005))
+              or
+              (slo:sli_error:ratio_rate3d{sloth_id="status-checks-availability"} > 0.005 and on (service) slo:sli_error:ratio_rate6h{sloth_id="status-checks-availability"} > 0.005)
+            )
           labels:
             severity: warning
           annotations:

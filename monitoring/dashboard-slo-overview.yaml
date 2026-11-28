@@ -1,0 +1,230 @@
+# SLO overview: one row per SLO and site / route, from the recording rules
+# Sloth generates ( slo/, deployments/21-slos.generated.yaml ). Picked up by
+# the Grafana sidecar through the grafana_dashboard label.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-slo-overview
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  slo-overview.json: |
+    {
+      "title": "SLOs",
+      "uid": "slo-overview",
+      "tags": [
+        "slo"
+      ],
+      "time": {
+        "from": "now-7d",
+        "to": "now"
+      },
+      "refresh": "5m",
+      "schemaVersion": 39,
+      "description": "Every SLO from slo/*.yaml ( Sloth ): objective, the last 30 days, the error budget left and how fast it burns.",
+      "panels": [
+        {
+          "id": 1,
+          "type": "table",
+          "title": "Every SLO: objective, last 30 days, budget left",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "objective",
+              "expr": "max by (sloth_service, sloth_slo, service) (slo:sli_error:ratio_rate30d * 0 + on (sloth_id) group_left slo:objective:ratio)",
+              "instant": true,
+              "format": "table",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            },
+            {
+              "refId": "good_30d",
+              "expr": "max by (sloth_service, sloth_slo, service) (1 - slo:sli_error:ratio_rate30d)",
+              "instant": true,
+              "format": "table",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            },
+            {
+              "refId": "budget_left",
+              "expr": "max by (sloth_service, sloth_slo, service) (slo:period_error_budget_remaining:ratio)",
+              "instant": true,
+              "format": "table",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            },
+            {
+              "refId": "burn_now",
+              "expr": "max by (sloth_service, sloth_slo, service) (slo:current_burn_rate:ratio)",
+              "instant": true,
+              "format": "table",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Objective"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 1
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Good, 30 days"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Error budget left"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "percentunit"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 0
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "red",
+                          "value": null
+                        },
+                        {
+                          "color": "orange",
+                          "value": 0.25
+                        },
+                        {
+                          "color": "green",
+                          "value": 0.5
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Burn rate now"
+                },
+                "properties": [
+                  {
+                    "id": "decimals",
+                    "value": 2
+                  }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "sloth_service": "SLO group",
+                  "sloth_slo": "SLO",
+                  "service": "Site / route",
+                  "Value #objective": "Objective",
+                  "Value #good_30d": "Good, 30 days",
+                  "Value #budget_left": "Error budget left",
+                  "Value #burn_now": "Burn rate now"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Burn rate ( 1 = spending the budget exactly over 30 days )",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 12
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "max by (sloth_slo, service) (slo:current_burn_rate:ratio)",
+              "legendFormat": "{{sloth_slo}} {{service}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        }
+      ]
+    }

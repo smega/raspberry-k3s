@@ -53,6 +53,9 @@ A small, public-safe demo running on a home Raspberry Pi k3s cluster. Live at:
   different Pis.
 - `content/` -- text the status page loads at runtime (the incident log),
   served from a ConfigMap: a new entry is a commit, no image build.
+- `slo/` -- the SLOs as short Sloth specs; `slo/generate.sh` turns them into
+  the recording rules in `deployments/21-slos.generated.yaml` ( see "SLOs
+  from real traffic" below ).
 - `runbooks/` -- one page per alert defined here (what fired, impact,
   how to check, how to fix, history); each rule links its page in
   `runbook_url`.
@@ -209,6 +212,17 @@ low traffic: an alert also needs a minimum number of bad requests, so a
 single 502 in a quiet hour doesn't page. The rules have promtool tests
 ( `tools/rule-tests/run.sh` ). The Cluster tab shows the last 24 hours
 ( `/api/traffic` ).
+
+Both kinds of SLO, the checker's and the traffic's, are written as
+[Sloth](https://github.com/slok/sloth) specs in `slo/`: an objective and
+an SLI query each. Sloth generates the standard recording rules
+( `slo:sli_error:ratio_rate<window>`, budget left, burn rate ) into
+`deployments/21-slos.generated.yaml`, and the Grafana dashboard "SLOs" reads
+them. The alerts stay hand-written on top of those series, because each
+needs a guard Sloth's own alerts can't express: at least 2 failed checks,
+or a minimum number of bad requests, since traffic here is a few requests
+a minute. CI ( `.github/workflows/rules.yml` ) regenerates the file and runs
+the alerts' unit tests ( `tools/rule-tests/` ).
 
 ### Power use
 

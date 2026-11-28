@@ -1,0 +1,59 @@
+# SLOs from every request visitors made, counted at Kong ( kong/metrics.yaml ),
+# per route ( the `service` label, httproute.<namespace>.<route>.<rule> ).
+# Sloth generates the recording rules ( deployments/21-slos.generated.yaml );
+# the alerts stay hand-written in 17-traffic-slo.yaml, because traffic is
+# low here and each needs a minimum number of bad requests.
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: traffic
+  namespace: public-demo
+  labels:
+    release: grafana
+spec:
+  service: traffic
+  slos:
+    - name: availability
+      objective: 99.5
+      description: "Requests not answered with a 5xx, every public route."
+      sli:
+        events:
+          errorQuery: sum by (service) (increase(kong_http_requests_total{code=~"5.."}[{{.window}}]))
+          totalQuery: sum by (service) (increase(kong_http_requests_total[{{.window}}]))
+      alerting:
+        name: TrafficErrors
+        pageAlert:
+          disable: true
+        ticketAlert:
+          disable: true
+    - name: latency-page
+      objective: 99
+      description: "Status page requests answered within 250 ms."
+      sli:
+        events:
+          errorQuery: |
+            sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-web.*"}[{{.window}}]))
+              - sum by (service) (increase(kong_request_latency_ms_bucket{service=~"httproute.public-demo.status-web.*", le="250.0"}[{{.window}}]))
+          totalQuery: sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-web.*"}[{{.window}}]))
+      alerting:
+        name: TrafficLatencyPage
+        pageAlert:
+          disable: true
+        ticketAlert:
+          disable: true
+    - name: latency-api
+      objective: 99
+      # A cold /api/dora pages through GitHub, up to ~20 s.
+      description: "Status API requests answered within 2 s."
+      sli:
+        events:
+          errorQuery: |
+            sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-api.*"}[{{.window}}]))
+              - sum by (service) (increase(kong_request_latency_ms_bucket{service=~"httproute.public-demo.status-api.*", le="2000.0"}[{{.window}}]))
+          totalQuery: sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-api.*"}[{{.window}}]))
+      alerting:
+        name: TrafficLatencyApi
+        pageAlert:
+          disable: true
+        ticketAlert:
+          disable: true

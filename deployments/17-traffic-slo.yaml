@@ -23,10 +23,11 @@ spec:
   groups:
     - name: traffic-slo.recording
       interval: 1m
+      # The ratios per window are Sloth's ( slo/traffic.yaml ->
+      # 21-slos.generated.yaml: slo:sli_error:ratio_rate<window>,
+      # sloth_service="traffic" ). These are the minimum counts of bad
+      # requests the alerts also need, which Sloth can't express.
       rules:
-        # Requests and 5xx per route, summed over the 4 gateways.
-        - record: route:kong_requests:increase5m
-          expr: sum by (service) (increase(kong_http_requests_total[5m]))
         - record: route:kong_errors:increase5m
           expr: sum by (service) (increase(kong_http_requests_total{code=~"5.."}[5m]))
         # Requests slower than the route's latency target.
@@ -37,39 +38,10 @@ spec:
             or
             sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-api.*"}[5m]))
               - sum by (service) (increase(kong_request_latency_ms_bucket{service=~"httproute.public-demo.status-api.*", le="2000.0"}[5m]))
-        - record: route:kong_latency_counted:increase5m
-          expr: sum by (service) (increase(kong_request_latency_ms_count{service=~"httproute.public-demo.status-(web|api).*"}[5m]))
-
-    - name: traffic-slo.windows
-      interval: 1m
-      # Ratios over each alert window, from the 5m increases: sums of
-      # increases, not averages of ratios, so quiet and busy minutes count
-      # by their requests.
-      rules:
-        - record: route:kong_error_ratio:5m
-          expr: route:kong_errors:increase5m / route:kong_requests:increase5m
-        - record: route:kong_error_ratio:30m
-          expr: sum_over_time(route:kong_errors:increase5m[30m]) / sum_over_time(route:kong_requests:increase5m[30m])
-        - record: route:kong_error_ratio:1h
-          expr: sum_over_time(route:kong_errors:increase5m[1h]) / sum_over_time(route:kong_requests:increase5m[1h])
-        - record: route:kong_error_ratio:2h
-          expr: sum_over_time(route:kong_errors:increase5m[2h]) / sum_over_time(route:kong_requests:increase5m[2h])
-        - record: route:kong_error_ratio:6h
-          expr: sum_over_time(route:kong_errors:increase5m[6h]) / sum_over_time(route:kong_requests:increase5m[6h])
-        - record: route:kong_error_ratio:1d
-          expr: sum_over_time(route:kong_errors:increase5m[1d]) / sum_over_time(route:kong_requests:increase5m[1d])
         - record: route:kong_errors:1h
           expr: sum_over_time(route:kong_errors:increase5m[1h]) / 5
         - record: route:kong_errors:1d
           expr: sum_over_time(route:kong_errors:increase5m[1d]) / 5
-        - record: route:kong_slow_ratio:30m
-          expr: sum_over_time(route:kong_slow:increase5m[30m]) / sum_over_time(route:kong_latency_counted:increase5m[30m])
-        - record: route:kong_slow_ratio:2h
-          expr: sum_over_time(route:kong_slow:increase5m[2h]) / sum_over_time(route:kong_latency_counted:increase5m[2h])
-        - record: route:kong_slow_ratio:6h
-          expr: sum_over_time(route:kong_slow:increase5m[6h]) / sum_over_time(route:kong_latency_counted:increase5m[6h])
-        - record: route:kong_slow_ratio:1d
-          expr: sum_over_time(route:kong_slow:increase5m[1d]) / sum_over_time(route:kong_latency_counted:increase5m[1d])
         - record: route:kong_slow:1d
           expr: sum_over_time(route:kong_slow:increase5m[1d]) / 5
 
@@ -79,12 +51,12 @@ spec:
         # least 5 failed requests in the last hour.
         - alert: TrafficErrorsFastBurn
           expr: |
-            (
-              (route:kong_error_ratio:1h > (14.4 * 0.005) and route:kong_error_ratio:5m > (14.4 * 0.005))
+            max without (sloth_id, sloth_service, sloth_slo, sloth_window) (
+              (slo:sli_error:ratio_rate1h{sloth_id="traffic-availability"} > (14.4 * 0.005) and on (service) slo:sli_error:ratio_rate5m{sloth_id="traffic-availability"} > (14.4 * 0.005))
               or
-              (route:kong_error_ratio:6h > (6 * 0.005) and route:kong_error_ratio:30m > (6 * 0.005))
+              (slo:sli_error:ratio_rate6h{sloth_id="traffic-availability"} > (6 * 0.005) and on (service) slo:sli_error:ratio_rate30m{sloth_id="traffic-availability"} > (6 * 0.005))
             )
-            and route:kong_errors:1h >= 5
+            and on (service) route:kong_errors:1h >= 5
           labels:
             severity: critical
           annotations:
@@ -97,8 +69,10 @@ spec:
         # 3x in 1 day ( 10% of the budget ), at least 10 failed requests.
         - alert: TrafficErrorsSlowBurn
           expr: |
-            route:kong_error_ratio:1d > (3 * 0.005) and route:kong_error_ratio:2h > (3 * 0.005)
-            and route:kong_errors:1d >= 10
+            max without (sloth_id, sloth_service, sloth_slo, sloth_window) (
+              slo:sli_error:ratio_rate1d{sloth_id="traffic-availability"} > (3 * 0.005) and on (service) slo:sli_error:ratio_rate2h{sloth_id="traffic-availability"} > (3 * 0.005)
+            )
+            and on (service) route:kong_errors:1d >= 10
           labels:
             severity: warning
           annotations:
@@ -112,12 +86,12 @@ spec:
         # requests in a day. A warning: slow is not down.
         - alert: TrafficLatencySLOBurn
           expr: |
-            (
-              (route:kong_slow_ratio:6h > (6 * 0.01) and route:kong_slow_ratio:30m > (6 * 0.01))
+            max without (sloth_id, sloth_service, sloth_slo, sloth_window) (
+              (slo:sli_error:ratio_rate6h{sloth_service="traffic",sloth_slo=~"latency-.*"} > (6 * 0.01) and on (service) slo:sli_error:ratio_rate30m{sloth_service="traffic",sloth_slo=~"latency-.*"} > (6 * 0.01))
               or
-              (route:kong_slow_ratio:1d > (3 * 0.01) and route:kong_slow_ratio:2h > (3 * 0.01))
+              (slo:sli_error:ratio_rate1d{sloth_service="traffic",sloth_slo=~"latency-.*"} > (3 * 0.01) and on (service) slo:sli_error:ratio_rate2h{sloth_service="traffic",sloth_slo=~"latency-.*"} > (3 * 0.01))
             )
-            and route:kong_slow:1d >= 10
+            and on (service) route:kong_slow:1d >= 10
           labels:
             severity: warning
           annotations:

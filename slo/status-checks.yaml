@@ -1,0 +1,30 @@
+# The checker's SLO: one check per site every 5 minutes, 99.5% over 30
+# days. The SLI is the share of time status_service_up was 0, per checked
+# site ( the `service` label ). Sloth generates the recording rules
+# ( deployments/21-slos.generated.yaml, slo/generate.sh ); the alerts stay
+# hand-written in 11-status-slo-alerts.yaml, because they need a guard
+# Sloth's own alerts can't have ( at least 2 failed checks ).
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: status-checks
+  namespace: public-demo
+  labels:
+    release: grafana
+spec:
+  service: status-checks
+  slos:
+    - name: availability
+      objective: 99.5
+      description: "One check every 5 minutes succeeds, per site on the status page."
+      sli:
+        raw:
+          # status-api runs 2 replicas exporting the same values; averaging
+          # away instance/pod leaves one series per site.
+          errorRatioQuery: 1 - avg without (instance, pod) (avg_over_time(status_service_up[{{.window}}]))
+      alerting:
+        name: StatusSLO
+        pageAlert:
+          disable: true
+        ticketAlert:
+          disable: true
