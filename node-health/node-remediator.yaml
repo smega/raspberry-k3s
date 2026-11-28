@@ -83,7 +83,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: remediator
-          image: registry.smdoes.eu/raspberry/node-remediator:main-1795811641-4738875 # {"$imagepolicy": "flux-system:node-remediator"}
+          image: registry.smdoes.eu/raspberry/node-remediator:main-1795857505-6344243 # {"$imagepolicy": "flux-system:node-remediator"}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -145,14 +145,10 @@ spec:
             runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeAutoCordoned.md
             summary: "{{ $labels.node }} was cordoned and drained automatically: its SD card is slow"
             description: >-
-              Node Problem Detector set SDCardSlow on {{ $labels.node }} and
-              node-remediator moved its pods away. Pods whose volume is on
-              that node are still there. It uncordons by itself after 15
-              healthy minutes; a card that stays slow needs replacing.
+              Node Problem Detector set SDCardSlow on {{ $labels.node }} and node-remediator moved its pods away. Pods whose volume is on that node are still there. It uncordons by itself after 15 healthy minutes; a card that stays slow needs replacing.
         - alert: NodeProblemNotRemediated
           expr: >-
-            max by (node) (kube_node_status_condition{condition="SDCardSlow",status="true"}) == 1
-            unless on (node) max by (node) (node_remediator_cordoned) == 1
+            max by (node) (kube_node_status_condition{condition="SDCardSlow",status="true"}) == 1 unless on (node) max by (node) (node_remediator_cordoned) == 1
           for: 30m
           labels:
             severity: warning
@@ -160,11 +156,7 @@ spec:
             runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeAutoCordoned.md
             summary: "{{ $labels.node }}'s SD card is slow and nothing moved its pods"
             description: >-
-              SDCardSlow has been True on {{ $labels.node }} for 30 minutes
-              and node-remediator left it alone: the control plane, another
-              node already cordoned, too few healthy workers, the cooldown
-              after an automatic uncordon, or opted out
-              ( node_remediator_blocked has the reason ).
+              SDCardSlow has been True on {{ $labels.node }} for 30 minutes and node-remediator left it alone: the control plane, another node already cordoned, too few healthy workers, the cooldown after an automatic uncordon, or opted out ( node_remediator_blocked has the reason ).
         - alert: NodeDrainStuck
           expr: max by (node) (node_remediator_pods_left) > 0
           for: 30m
@@ -174,14 +166,10 @@ spec:
             runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeAutoCordoned.md
             summary: "{{ $value }} pods still on {{ $labels.node }} 30 minutes after it was cordoned"
             description: >-
-              node-remediator keeps trying to evict them; a
-              PodDisruptionBudget refuses ( no healthy replica elsewhere ),
-              or the eviction fails.
+              node-remediator keeps trying to evict them; a PodDisruptionBudget refuses ( no healthy replica elsewhere ), or the eviction fails.
         - alert: NodeRemediatorDown
           expr: >-
-            (time() - max(node_remediator_last_run_timestamp_seconds) > 600)
-            or (max(node_remediator_last_run_success) == 0)
-            or absent(node_remediator_last_run_timestamp_seconds)
+            (time() - max(node_remediator_last_run_timestamp_seconds) > 600) or (max(node_remediator_last_run_success) == 0) or absent(node_remediator_last_run_timestamp_seconds)
           for: 15m
           labels:
             severity: warning
@@ -189,5 +177,4 @@ spec:
             runbook_url: https://github.com/smega/raspberry-k3s/blob/main/runbooks/NodeAutoCordoned.md
             summary: "node-remediator isn't working: a sick node would stay in service"
             description: >-
-              No successful round for 15 minutes, or no metrics at all.
-              kubectl -n monitoring logs deploy/node-remediator
+              No successful round for 15 minutes, or no metrics at all. kubectl -n monitoring logs deploy/node-remediator
