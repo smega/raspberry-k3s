@@ -110,6 +110,14 @@ jobs:
       # and the push uploads exactly those bytes, so the digest that gets
       # deployed is the one that was scanned. Anything pushed would be
       # deployed by Flux, so the gate has to come before the push.
+      # A Dockerfile's `ARG APK_DAY` before `RUN apk upgrade` makes that
+      # layer rebuild at least once a day: from the build cache it kept
+      # whatever packages it had the first time ( 2026-11-27: status-web
+      # was rebuilt with the same old libxml2 Trivy had flagged ).
+      - name: Day
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: Build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -119,6 +127,7 @@ jobs:
           outputs: type=oci,dest=${{ runner.temp }}/image,tar=false
           tags: ${{ env.REPO }}:${{ steps.tag.outputs.tag }}
           build-args: |
+            APK_DAY=${{ steps.day.outputs.day }}
             ${{ inputs.build-status-web-args && format('VITE_BUILD_SHA={0}', github.sha) || '' }}
             ${{ inputs.build-status-web-args && format('VITE_BUILD_TIME={0}', steps.tag.outputs.time) || '' }}
             ${{ inputs.build-status-web-args && format('VITE_BUILD_MESSAGE={0}', steps.tag.outputs.message) || '' }}
