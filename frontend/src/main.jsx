@@ -1658,7 +1658,8 @@ function SiteHeader({ tab }) {
             Szabolcs Mega <span style={{ color: INK_MUTED, fontWeight: 400 }}>/ status</span>
           </span>
         </a>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        {/* Wraps on a phone: five links don't fit in 390 px. */}
+        <nav style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', minWidth: 0 }}>
           {TABS.map((t) => {
             const active = t.id === tab
             return (
