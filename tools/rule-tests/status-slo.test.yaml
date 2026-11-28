@@ -1,6 +1,13 @@
 # Run with tools/rule-tests/run.sh.
 rule_files: [status-slo.rules.yaml]
 evaluation_interval: 1m
+# Sloth's recording rules first: groups otherwise run in any order, and
+# an alert evaluated before them reads last minute's ratio.
+group_eval_order:
+  - sloth-slo-sli-recordings-status-checks-availability
+  - sloth-slo-meta-recordings-status-checks-availability
+  - status-slo.recording
+  - status-slo.alerts
 tests:
   # One failed check ( the gauge at 0 for 5 minutes ) -> no fast burn.
   - interval: 1m

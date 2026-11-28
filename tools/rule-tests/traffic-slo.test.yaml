@@ -1,6 +1,14 @@
 # Run with tools/rule-tests/run.sh.
 rule_files: [traffic-slo.rules.yaml]
 evaluation_interval: 1m
+# Sloth's recording rules first: groups otherwise run in any order, and
+# an alert evaluated before them reads last minute's ratio.
+group_eval_order:
+  - sloth-slo-sli-recordings-traffic-availability
+  - sloth-slo-sli-recordings-traffic-latency-page
+  - sloth-slo-sli-recordings-traffic-latency-api
+  - traffic-slo.recording
+  - traffic-slo.alerts
 tests:
   # A real outage: 2 req/min, then 50% 5xx for 20 minutes -> critical.
   - interval: 1m

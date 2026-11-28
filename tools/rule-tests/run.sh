@@ -13,8 +13,7 @@ yaml.safe_dump({'groups': d['spec']['groups']}, open(sys.argv[2], 'w'), sort_key
 }
 # Every PrometheusRule in the given files, groups merged: an SLO's
 # alerts read the recording rules Sloth generated ( 21-slos.generated.yaml ).
-# Those go first: promtool evaluates groups in order, and an alert read
-# before its rules have run sees last minute's values.
+# The test files set the evaluation order ( group_eval_order ).
 extract_all() {
   out=$1; shift
   python3 -c "
