@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   changes:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     outputs:
       web: ${{ steps.f.outputs.web }}
       api: ${{ steps.f.outputs.api }}
