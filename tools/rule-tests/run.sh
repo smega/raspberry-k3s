@@ -13,6 +13,8 @@ yaml.safe_dump({'groups': d['spec']['groups']}, open(sys.argv[2], 'w'), sort_key
 }
 # Every PrometheusRule in the given files, groups merged: an SLO's
 # alerts read the recording rules Sloth generated ( 21-slos.generated.yaml ).
+# Those go first: promtool evaluates groups in order, and an alert read
+# before its rules have run sees last minute's values.
 extract_all() {
   out=$1; shift
   python3 -c "
@@ -25,10 +27,10 @@ for f in sys.argv[2:]:
 yaml.safe_dump({'groups': groups}, open(sys.argv[1], 'w'), sort_keys=False)
 " "$out" "$@"
 }
-extract_all traffic-slo.rules.yaml ../../deployments/17-traffic-slo.yaml ../../deployments/21-slos.generated.yaml
+extract_all traffic-slo.rules.yaml ../../deployments/21-slos.generated.yaml ../../deployments/17-traffic-slo.yaml
 extract ../../monitoring/release-rate-rules.yaml release-rate.rules.yaml
 extract ../../monitoring/node-runtime-rules.yaml node-runtime.rules.yaml status-slo.rules.yaml
-extract_all status-slo.rules.yaml ../../deployments/11-status-slo-alerts.yaml ../../deployments/21-slos.generated.yaml
+extract_all status-slo.rules.yaml ../../deployments/21-slos.generated.yaml ../../deployments/11-status-slo-alerts.yaml
 docker run --rm -v "$PWD:/t" -w /t --entrypoint promtool quay.io/prometheus/prometheus:v3.5.0 \
   test rules traffic-slo.test.yaml release-rate.test.yaml node-runtime.test.yaml status-slo.test.yaml
 rm -f traffic-slo.rules.yaml release-rate.rules.yaml node-runtime.rules.yaml status-slo.rules.yaml
