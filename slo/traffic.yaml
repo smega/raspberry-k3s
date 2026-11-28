@@ -18,7 +18,11 @@ spec:
       description: "Requests not answered with a 5xx, every public route."
       sli:
         events:
-          errorQuery: sum by (service) (increase(kong_http_requests_total{code=~"5.."}[{{.window}}]))
+          # Kong only has a 5xx series for a route once it has answered one;
+          # "or ... * 0" gives a route without any a 0, not no ratio at all.
+          errorQuery: |
+            sum by (service) (increase(kong_http_requests_total{code=~"5.."}[{{.window}}]))
+              or sum by (service) (increase(kong_http_requests_total[{{.window}}])) * 0
           totalQuery: sum by (service) (increase(kong_http_requests_total[{{.window}}]))
       alerting:
         name: TrafficErrors
