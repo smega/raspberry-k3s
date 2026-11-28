@@ -36,7 +36,7 @@ permissions:
 
 jobs:
   changes:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     outputs:
       web: ${{ steps.f.outputs.web == 'true' || inputs.all == true }}
       api: ${{ steps.f.outputs.api == 'true' || inputs.all == true }}
